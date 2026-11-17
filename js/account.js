@@ -1,0 +1,6 @@
+import { cloudState } from './cloud.js';
+import { escapeHTML as h } from './ui.js';
+export function accountPage() {
+  const state = cloudState();
+  return `<div class="page-heading"><div><span class="eyebrow">ACESSO DA EQUIPE</span><h1>Conta e conexão</h1><p>Estoque e atividades compartilhados entre os usuários autorizados.</p></div></div><section class="panel account-summary"><div><h2>${h(state.email)}</h2><p>${state.connected ? 'Conectado ao Firebase Realtime Database.' : 'Sem conexão. Aguarde antes de movimentar o estoque.'}</p></div><button class="button secondary" data-action="cloud-logout">Sair da conta</button></section><section class="panel backup-card"><h2>Alterar senha</h2><form class="account-form" data-auth-form="password"><label>Nova senha<input type="password" name="password" autocomplete="new-password" minlength="8" required></label><button class="button primary" type="submit">Atualizar senha</button><p class="auth-error inline-error" role="alert" hidden></p></form></section><div class="notice"><div><strong>Salvamento confirmado na nuvem</strong><p>As atualizações chegam automaticamente a todos os aparelhos. Cada movimento registra usuário, horário do servidor e os saldos anteriores e posteriores.</p></div></div>`;
+}

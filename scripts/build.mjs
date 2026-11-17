@@ -1,0 +1,11 @@
+import { build } from 'esbuild';
+import { mkdir, copyFile, rm } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const output = new URL('../dist/', import.meta.url);
+await rm(output, { recursive: true, force: true });
+await mkdir(new URL('js/', output), { recursive: true });
+await mkdir(new URL('css/', output), { recursive: true });
+await build({ entryPoints: [root+'js/app.js'], outfile: root+'dist/js/app.js', bundle: true, format: 'esm', target: ['es2022'], minify: true, external: ['../firebase-config.js'], legalComments: 'eof', metafile: false });
+for (const file of ['index.html', 'firebase-config.js', 'favicon.svg', 'css/legacy.css', 'css/style.css', 'sw.js', '.nojekyll']) await copyFile(root+file, root+'dist/'+file);
+console.log('Build completo em dist/. Caminhos relativos compatíveis com GitHub Pages.');

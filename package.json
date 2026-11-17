@@ -1,0 +1,17 @@
+{
+  "name": "controle-chaparia",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Controle industrial de chapas, retalhos e atividades com Firebase.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && node scripts/preview.mjs",
+    "preview": "node scripts/preview.mjs",
+    "test": "node --test tests/domain.test.js",
+    "test:e2e": "playwright test",
+    "test:rules": "firebase emulators:exec --only database --project demo-chaparia 'node --test tests/rules.test.js'"
+  },
+  "dependencies": { "firebase": "12.6.0" },
+  "devDependencies": { "esbuild": "0.27.0", "@playwright/test": "1.61.1", "@firebase/rules-unit-testing": "5.0.0", "firebase-tools": "14.26.0" }
+}
