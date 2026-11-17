@@ -72,3 +72,12 @@ Em 17/11/2026, foi reportada falha ao buscar um módulo `js/chunks/weights-excel
 O teste de navegador agora bloqueia qualquer pedido posterior de JavaScript e desliga a rede antes da primeira exportação. O arquivo continua sendo gerado a partir do estoque já carregado, sem novos módulos. Também foram verificados os três subdiretórios suportados e o cancelamento de exportação quando a sessão termina. A correção estrutural do XML da planilha continua incluída.
 
 Uma página já aberta com a versão anterior precisa ser recarregada uma vez para receber esta correção. Os saldos e o catálogo no Firebase não são alterados por ela.
+
+
+## Carregamento do estoque compartilhado
+
+A sincronização inicial foi separada em coleções operacionais, sem aguardar o histórico completo. O dashboard consulta as últimas 100 movimentações por timestamp. O histórico integral continua disponível em Movimentações, e a exportação dessa seção aguarda a leitura completa. As gravações mantêm estoque e auditoria na mesma transação, com leitura temporária do nó completo somente ao gravar.
+
+Foram acrescentados testes no emulador oficial com 160 registros de auditoria: prontidão do estoque antes do histórico integral, limite de 100 recentes, recuperação dos registros antigos sob demanda, preservação de todas as 161 movimentações após uma entrada e interrupção das assinaturas após sair. Há também inicialização de banco vazio. Os cálculos de catálogo e ordenação passaram a preparar os índices uma vez por chamada, evitando recomputá-los a cada comparação. Atualizações apenas de conexão não reconstroem a tabela de estoque.
+
+A suíte local de lógica/exportação e o build passaram, assim como os 21 testes de interface. O workflow executa os novos testes de integração. Não foi medido o tempo de conexão na rede da fábrica; esta mudança remove a dependência do histórico no carregamento inicial, mas não altera a latência da internet ou do serviço Firebase.

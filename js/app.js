@@ -3,7 +3,7 @@ import { priorities, statuses, createTask, selectTasks, getMetrics, dateLabel, d
 import { backupJSON, tasksCSV, validateBackup, download } from './backup.js';
 import { icon } from './icons.js';
 import { inventoryDashboard, sheetsPage, remnantsPage, movementsPage, initializeInventory } from './inventory.js';
-import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
+import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, ensureMovementHistory, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
 import { accountPage } from './account.js';
 import { weightsPage, initializeWeights } from './weights-page.js';
 
@@ -17,6 +17,7 @@ let page = getPage();
 let lastSaved = null;
 let draftTask = null, cloudTransition = false;
 let editingTask = null;
+let lastCloudData = null;
 let mutationError = '';
 const channel = globalThis.BroadcastChannel ? new BroadcastChannel('compasso-updates') : null;
 
@@ -48,6 +49,7 @@ function render() {
   const focused = document.activeElement;
   const focusId = focused?.id;
   const selection = focused?.tagName === 'INPUT' && focused.type === 'search' ? [focused.selectionStart, focused.selectionEnd] : null;
+  if (page === 'movimentacoes') ensureMovementHistory();
   const metrics = getMetrics(tasks);
   $('#pending-count').textContent = metrics.pending;
   $('#progress-count').textContent = metrics.progress;
@@ -372,12 +374,13 @@ function adoptCloud() {
   message.classList.toggle('inline-error', !!state.error);
   $('#login-submit').disabled = !state.configured || state.authenticated;
   if (!authorized) {
-    ready = false; tasks = [];
+    ready = false; tasks = []; lastCloudData = null;
     document.querySelectorAll('dialog[open]').forEach(d => d.close());
     $('#main').innerHTML = '';
     if (state.authenticated) $('#login-logout').hidden = false;
     else $('#login-logout').hidden = true;
-  } else {
+  } else if (!ready || state.data !== lastCloudData || page === 'conta') {
+    lastCloudData = state.data;
     tasks = Object.values(state.data.tasks || {}).map(t => ({...t, completedAt:t.completedAt ?? null, description:t.description || '',notes:t.notes || '',dueDate:t.dueDate || ''}));
     ready = true;
     render();

@@ -1,0 +1,68 @@
+import { ref, onValue, query, orderByChild, limitToLast, runTransaction } from 'firebase/database';
+import { initialState } from './domain.js';
+
+// Read the operational collections independently. Audit history must never block entry.
+export function watchSharedData(db, { onChange, onError }) {
+  const stops = [], first = new Set();
+  let data = {}, stopped = false, loaded = false, seeding = false;
+  let stopRecent, stopHistory, recentStarted = false, historyStarted = false, historyLoaded = false, historyError = '';
+  let scheduled = false;
+  const publish = () => {
+    if (scheduled || stopped) return;
+    scheduled = true;
+    queueMicrotask(() => { scheduled = false; if (!stopped && loaded) onChange({ data, loaded, historyLoaded, historyError }); });
+  };
+  function startRecent() {
+    if (recentStarted || stopped) return;
+    recentStarted = true;
+    stopRecent = onValue(query(ref(db, 'chaparia/movements'), orderByChild('timestamp'), limitToLast(100)), snap => {
+      if (stopped || historyLoaded) return;
+      data = { ...data, movements: snap.val() || {} }; publish();
+    }, error => { if (!stopped) { historyError = error.message; publish(); } });
+  }
+  function checkReady() {
+    if (stopped || first.size < 4) return;
+    if (data.schemaVersion == null && data.sheets == null) {
+      if (seeding) return;
+      seeding = true;
+      runTransaction(ref(db, 'chaparia'), current => current === null ? initialState() : undefined, { applyLocally: false })
+        .then(result => { if (!result.committed && !loaded && !stopped) onError(new Error('Estrutura de dados incompatível. O conteúdo existente foi preservado.')); })
+        .catch(error => { if (!stopped) onError(error); }).finally(() => { seeding = false; });
+      return;
+    }
+    if (data.schemaVersion !== 1 || !data.sheets) { loaded = false; onError(new Error('Estrutura de dados incompatível. O conteúdo existente foi preservado.')); return; }
+    loaded = true; publish(); startRecent();
+  }
+  for (const name of ['schemaVersion', 'sheets', 'materials', 'tasks']) {
+    stops.push(onValue(ref(db, `chaparia/${name}`), snap => {
+      if (stopped) return;
+      data = { ...data, [name]: snap.val() ?? (['materials','tasks'].includes(name) ? {} : null) };
+      first.add(name); checkReady();
+    }, error => { if (!stopped) { loaded = false; onError(error); } }));
+  }
+  return {
+    loadHistory(retry = false) {
+      if (stopped || (historyStarted && !retry)) return;
+      historyStarted = true; historyError = ''; stopHistory?.();
+      stopHistory = onValue(ref(db, 'chaparia/movements'), snap => {
+        if (stopped) return;
+        historyLoaded = true; historyError = ''; stopRecent?.(); data = { ...data, movements: snap.val() || {} }; publish();
+      }, error => { if (!stopped) { historyError = error.message; publish(); } });
+    },
+    adoptTransaction(value) {
+      if (stopped) return;
+      const movements = historyLoaded ? value.movements || {} : Object.fromEntries(Object.entries(value.movements || {}).sort(([,a],[,b]) => b.timestamp-a.timestamp).slice(0,100));
+      data = { schemaVersion: value.schemaVersion, sheets: value.sheets, materials: value.materials || {}, tasks: value.tasks || {}, movements }; publish();
+    },
+    stop() { stopped = true; for (const stop of stops) stop(); stopRecent?.(); stopHistory?.(); }
+  };
+}
+
+// Keep a complete root snapshot only during a write, preserving atomic stock + audit.
+export async function commitSharedTransaction(root, update) {
+  let stop;
+  try {
+    await new Promise((resolve, reject) => { stop = onValue(root, resolve, reject); });
+    return await runTransaction(root, update, { applyLocally: false });
+  } finally { stop?.(); }
+}

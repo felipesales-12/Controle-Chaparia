@@ -155,7 +155,7 @@ npm run test:rules
 
 - **37 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
 - **21 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
-- **10 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
+- **12 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória e um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
 
@@ -173,7 +173,7 @@ A suíte `.github/workflows/verify.yml` executa lógica, emulador e interface no
 - **Exportar estoque e histórico:** em Movimentações, baixa um JSON contendo todo o nó `/chaparia`. Para uma recuperação administrativa completa, valide a exportação e restaure seu campo `data` no nó `/chaparia` pelo console Firebase. Evite restaurar a raiz inteira e não faça isso com operadores trabalhando.
 - Para migrar atividades do aplicativo anterior, exporte o JSON antigo e importe em Backup de Atividades. A restauração substitui a lista atual, com confirmação. Nenhum banco local antigo é apagado ou migrado silenciosamente.
 
-A transação e a assinatura abrangem o nó compartilhado completo para garantir consistência sem um backend próprio. O volume transferido cresce com o histórico. A paginação da tela é local; para alto volume de movimentações, planeje particionar os dados e adotar transações por entidade com backend para auditoria. Não há limite de retenção ou limpeza automática.
+A abertura assina separadamente chapas, materiais, atividades e versão do esquema. O dashboard acompanha apenas as últimas 100 movimentações, consultadas com o índice timestamp. O histórico completo é carregado ao abrir Movimentações; a exportação dessa seção aguarda sua carga completa. As gravações ainda leem temporariamente o nó compartilhado completo e executam a transação de estoque + histórico de forma atômica. Portanto, o custo de uma gravação ainda cresce com o histórico; para alto volume de movimentações, planeje transações por entidade com backend para auditoria. Não há limite de retenção ou limpeza automática.
 
 A busca de retalhos considera o envelope retangular e rotação opcional; furos, formatos em L, direção de laminação, folga e espessura de corte precisam ser avaliados pelo operador.
 
@@ -203,6 +203,7 @@ Controle-Chaparia/
 │   ├── app.js
 │   ├── account.js
 │   ├── backup.js
+│   ├── shared-data.js
 │   ├── cloud.js
 │   ├── database.js
 │   ├── catalog.js

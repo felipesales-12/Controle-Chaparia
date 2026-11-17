@@ -1,4 +1,4 @@
-import { cloudState, mutate } from './cloud.js';
+import { cloudState, mutate, ensureMovementHistory } from './cloud.js';
 import { materialName as lookupMaterialName, criticalSheets, purchaseText, fits } from './domain.js';
 import { escapeHTML as h } from './ui.js';
 import { icon } from './icons.js';
@@ -51,6 +51,8 @@ function movementTable(rows) {
   return `<div class="table-scroll"><table class="movement-table"><thead><tr><th>OPERAÇÃO / MOTIVO</th><th>USUÁRIO</th><th>DATA E HORA</th><th>DETALHES</th></tr></thead><tbody>${rows.map(m=>`<tr><td><div class="movement-description"><span class="movement-icon ${m.type.endsWith('in')||m.type.endsWith('add')?'incoming':''}">${icon(m.type.startsWith('task')?'list':m.type==='sheet-in'?'plus':'cut')}</span><div><strong>${h(m.description)}</strong><small>${h(m.reason || 'Registro automático')}</small></div></div></td><td>${h(m.actor?.email || m.actor?.uid)}</td><td class="date-cell">${time(m.timestamp)}</td><td><button class="icon-button" data-inventory-action="movement-detail" data-id="${h(m.id)}" aria-label="Detalhes da movimentação">${icon('file')}</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 export function movementsPage() {
+  const state = cloudState();
+  if (state.historyLoaded === false) return `${title('RASTREABILIDADE DA OPERAÇÃO','Movimentações','O histórico completo é carregado ao abrir esta seção.')}<section class="panel inventory-empty" role="status">${state.historyError ? `<p>${h(state.historyError)}</p>${actionButton('history-retry','Tentar novamente')}` : '<p>Carregando o histórico completo de movimentações…</p>'}</section>`;
   const query = historySearch.toLowerCase();
   const list = Object.values(data().movements || {}).filter(m=>`${m.description} ${m.actor?.email} ${m.reason}`.toLowerCase().includes(query)).sort((a,b)=>b.timestamp-a.timestamp);
   return `${title('RASTREABILIDADE DA OPERAÇÃO','Movimentações','Entradas, cortes, retalhos e atividades com usuário e horário do servidor.',actionButton('export-inventory',`${icon('download')}Exportar estoque e histórico`))}<section class="panel"><div class="inventory-toolbar"><strong>${list.length} registros</strong><form class="inline-search" data-inventory-form="history-search"><label class="sr-only" for="history-search">Pesquisar movimentações</label><input id="history-search" name="search" type="search" value="${h(historySearch)}" placeholder="Buscar operação, usuário ou motivo…"><button class="button secondary">Buscar</button></form></div>${movementTable(list.slice(0,historyLimit))}${list.length>historyLimit?`<div class="load-more">${actionButton('history-more','Mostrar mais registros')}</div>`:''}</section>`;
@@ -115,8 +117,9 @@ export function initializeInventory(options) {
         catch { const box=document.getElementById('inventory-content'); box.innerHTML=`<div class="dialog-heading"><h2 id="inventory-dialog-title">Lista de compra</h2><button class="button secondary" data-inventory-action="close">Fechar</button></div><p>Selecione e copie a lista abaixo.</p><textarea class="copy-list" rows="15" readonly>${h(value)}</textarea>`; document.getElementById('inventory-dialog').showModal(); box.querySelector('textarea').select(); }
         return;
       }
+      if (action === 'history-retry') { ensureMovementHistory(true); return; }
       if (action === 'history-more') { historyLimit+=100; redraw(); return; }
-      if (action === 'export-inventory') { download(JSON.stringify({ format:'chaparia-export', version:1, exportedAt:new Date().toISOString(), data:data() },null,2),'chaparia-estoque-historico','json','application/json'); notify('Exportação de estoque e histórico iniciada.'); return; }
+      if (action === 'export-inventory') { if (cloudState().historyLoaded === false) throw new Error('Aguarde o carregamento do histórico completo antes de exportar.'); download(JSON.stringify({ format:'chaparia-export', version:1, exportedAt:new Date().toISOString(), data:data() },null,2),'chaparia-estoque-historico','json','application/json'); notify('Exportação de estoque e histórico iniciada.'); return; }
       if (action === 'movement-detail') {
         const m=data().movements[id]; document.getElementById('inventory-content').innerHTML=`<div class="dialog-heading"><h2 id="inventory-dialog-title">Detalhes da movimentação</h2><button class="button secondary" data-inventory-action="close">Fechar</button></div><p>${h(m.description)}</p><p>${h(m.actor?.email)} · ${time(m.timestamp)}</p><p>${h(m.reason||'Sem motivo informado.')}</p><div class="audit-states"><div><h3>Antes</h3><pre>${h(JSON.stringify(m.before||{},null,2))}</pre></div><div><h3>Depois</h3><pre>${h(JSON.stringify(m.after||{},null,2))}</pre></div></div>`; document.getElementById('inventory-dialog').showModal(); return;
       }

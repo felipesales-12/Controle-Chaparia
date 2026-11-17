@@ -6,21 +6,27 @@ export const materialName = (key, data = {}) => data.materials?.[key]?.name || M
 export const materialDensity = (key, data = {}) => Number(data.materials?.[key]?.density ?? MATERIALS[key]?.density ?? 0);
 export function getMaterials(data = {}) {
   const definitions = { ...MATERIALS, ...(data.materials || {}) };
+  const thicknesses = new Map();
+  if (data.sheets != null) for (const sheet of activeSheets(data)) {
+    if (!thicknesses.has(sheet.material)) thicknesses.set(sheet.material, new Set());
+    thicknesses.get(sheet.material).add(Number(sheet.thickness));
+  }
   return Object.fromEntries(Object.entries(definitions).map(([key, info]) => [key, {
     ...info,
     density: materialDensity(key, data),
     // Missing materials/reorderPoint/active fields in older databases need no destructive migration.
-    thicknesses: data.sheets == null ? [...(info.thicknesses || [])] : [...new Set(activeSheets(data).filter(s => s.material === key).map(s => Number(s.thickness)))].sort((a, b) => a - b)
+    thicknesses: data.sheets == null ? [...(info.thicknesses || [])] : [...(thicknesses.get(key) || [])].sort((a, b) => a - b)
   }]));
 }
 const tie = (a, b, data) => String(materialName(a.material, data)).localeCompare(String(materialName(b.material, data)), 'pt-BR') || String(a.id).localeCompare(String(b.id));
 export function orderInventory(items, order = 'area', data = {}) {
+  const materialKeys = order === 'material' ? Object.keys(getMaterials(data)) : [];
   const difference = (a, b, key) => Number(a[key]) - Number(b[key]);
   return [...items].sort((a, b) => {
     let result = 0;
     switch (order) {
       case 'material': {
-        const keys = Object.keys(getMaterials(data));
+        const keys = materialKeys;
         result = keys.indexOf(a.material) - keys.indexOf(b.material) || difference(a, b, 'thickness'); break;
       }
       case 'thickness-asc': result = difference(a, b, 'thickness'); break;

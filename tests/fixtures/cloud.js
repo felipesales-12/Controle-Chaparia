@@ -28,3 +28,5 @@ export const cloudDatabase={
   remove:(id,revision)=>mutate({type:'task-remove',id,revision}),
   replace:(tasks,_settings,expected=JSON.stringify(data.tasks||{}))=>mutate({type:'task-replace',tasks,expected})
 };
+
+export function ensureMovementHistory() {}

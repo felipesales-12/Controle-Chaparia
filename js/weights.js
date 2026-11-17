@@ -49,6 +49,7 @@ export function stockWeightSummary(data = {}) {
 
 // One row per inventory record; identical pieces share their unit weight.
 export function stockWeightDetails(data = {}) {
+  const materialKeys = Object.keys(getMaterials(data));
   const collect = collection => Object.entries(data[collection] || {}).map(([key, item]) => {
     const quantity = Number(item.quantity);
     const unitKg = pieceWeightKg(item, data);
@@ -59,7 +60,7 @@ export function stockWeightDetails(data = {}) {
       unitKg, totalKg: unitKg * (Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 0),
       status: collection === 'sheets' && item.active === false ? 'Arquivada' : quantity > 0 ? 'Disponível' : collection === 'remnants' ? 'Consumido' : 'Sem estoque'
     };
-  }).sort((a, b) => Object.keys(getMaterials(data)).indexOf(a.material) - Object.keys(getMaterials(data)).indexOf(b.material)
+  }).sort((a, b) => materialKeys.indexOf(a.material) - materialKeys.indexOf(b.material)
     || Number(a.thickness) - Number(b.thickness) || String(a.id).localeCompare(String(b.id), 'pt-BR'));
   return { sheets: collect('sheets'), remnants: collect('remnants') };
 }

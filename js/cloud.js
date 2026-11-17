@@ -1,18 +1,20 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut as firebaseSignOut, sendPasswordResetEmail, updatePassword as firebaseUpdatePassword, browserSessionPersistence } from 'firebase/auth';
-import { getDatabase, ref, onValue, runTransaction, serverTimestamp } from 'firebase/database';
+import { getDatabase, ref, onValue, serverTimestamp } from 'firebase/database';
 import { firebaseConfig } from '../firebase-config.js';
-import { initialState, transactionReducer } from './domain.js';
+import { transactionReducer } from './domain.js';
 import { uniqueId } from './tasks.js';
+import { watchSharedData, commitSharedTransaction } from './shared-data.js';
 
-let auth, db, root, initialized, stopData, stopConnection, generation = 0;
+let auth, db, root, initialized, dataWatcher, stopConnection, generation = 0;
 let snapshot = null, user = null, connected = false, loaded = false, saving = false;
+let historyLoaded = false, historyError = '';
 let status = 'loading', errorMessage = '', configured = false;
 const listeners = new Set();
 export const subscribeCloud = listener => { listeners.add(listener); return () => listeners.delete(listener); };
 function emit() { for (const listener of listeners) listener(cloudState()); }
 export function cloudState() {
-  return { configured, authenticated: !!user, email: user?.email || '', uid: user?.uid || '', mode: 'cloud', status, connected, loaded, saving, error: errorMessage, data: snapshot };
+  return { configured, authenticated: !!user, email: user?.email || '', uid: user?.uid || '', mode: 'cloud', status, connected, loaded, saving, historyLoaded, historyError, error: errorMessage, data: snapshot };
 }
 export const friendlyError = error => ({
   'auth/invalid-credential': 'E-mail ou senha inválidos.', 'auth/invalid-email': 'Informe um e-mail válido.',
@@ -24,7 +26,7 @@ export const friendlyError = error => ({
   'PERMISSION_DENIED': 'O Firebase negou o acesso. Confira a sessão e as regras do Realtime Database.',
   'permission-denied': 'O Firebase negou o acesso. Confira a sessão e as regras do Realtime Database.'
 }[error.code] || error.message || 'Não foi possível concluir a operação.');
-function detach() { stopData?.(); stopConnection?.(); stopData = stopConnection = null; snapshot = null; connected = loaded = false; }
+function detach() { dataWatcher?.stop(); stopConnection?.(); dataWatcher = stopConnection = null; snapshot = null; connected = loaded = historyLoaded = false; historyError = ''; }
 export function initializeCloud() {
   if (initialized) return initialized;
   initialized = (async () => {
@@ -42,22 +44,14 @@ export function initializeCloud() {
         if (!user) { status = 'login-required'; emit(); return; }
         status = 'loading'; emit();
         stopConnection = onValue(ref(db, '.info/connected'), value => { connected = value.val() === true; if (loaded) status = connected ? 'synced' : 'offline'; emit(); });
-        // Start listening immediately after authentication. A null node is seeded by a transaction.
-        let seeding = false;
-        stopData = onValue(root, value => {
-          if (epoch !== generation) return;
-          const data = value.val();
-          if (data === null) {
-            if (seeding) return;
-            seeding = true;
-            runTransaction(root, current => current === null ? initialState() : undefined, { applyLocally: false })
-              .catch(error => { if (epoch === generation) { status = 'error'; errorMessage = friendlyError(error); emit(); } })
-              .finally(() => { seeding = false; });
-            return;
-          }
-          if (data.schemaVersion !== 1 || !data.sheets) { status = 'error'; errorMessage = 'Estrutura de dados incompatível. O conteúdo existente foi preservado.'; loaded = false; emit(); return; }
-          snapshot = data; loaded = true; status = connected ? 'synced' : 'offline'; errorMessage = ''; emit();
-        }, error => { if (epoch === generation) { loaded = false; status = 'error'; errorMessage = friendlyError(error); emit(); } });
+        dataWatcher = watchSharedData(db, {
+          onChange(value) {
+            if (epoch !== generation) return;
+            snapshot = value.data; loaded = value.loaded; historyLoaded = value.historyLoaded; historyError = value.historyError;
+            status = connected ? 'synced' : 'offline'; errorMessage = ''; emit();
+          },
+          onError(error) { if (epoch === generation) { loaded = false; status = 'error'; errorMessage = friendlyError(error); emit(); } }
+        });
       }, error => { status = 'error'; errorMessage = friendlyError(error); emit(); });
     } catch (error) { status = 'error'; errorMessage = friendlyError(error); emit(); }
   })();
@@ -87,9 +81,9 @@ export async function mutate(command) {
   saving = true; emit();
   try {
     const transaction = transactionReducer(operation, actor, serverTimestamp());
-    const result = await runTransaction(root, transaction.update, { applyLocally: false });
+    const result = await commitSharedTransaction(root, transaction.update);
     if (!result.committed) throw transaction.error || new Error('A operação não foi confirmada pelo servidor. Atualize a lista.');
-    if (epoch === generation) { snapshot = result.snapshot.val(); emit(); }
+    if (epoch === generation) { dataWatcher?.adoptTransaction(result.snapshot.val()); }
   } catch (error) { throw new Error(friendlyError(error)); }
   finally { saving = false; emit(); }
 }
@@ -104,3 +98,5 @@ export const cloudDatabase = {
   replace: (tasks, _settings, expected = JSON.stringify(snapshot?.tasks || {})) => mutate({ type: 'task-replace', tasks, expected })
 };
 window.addEventListener('beforeunload', event => { if (saving) { event.preventDefault(); event.returnValue = ''; } });
+
+export function ensureMovementHistory(retry = false) { dataWatcher?.loadHistory(retry); }
