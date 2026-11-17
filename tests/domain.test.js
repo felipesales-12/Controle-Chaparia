@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, applyOperation, criticalSheets, purchaseText, fits, remnantValues } from '../js/domain.js';
+import { initialState, applyOperation, criticalSheets, purchaseText, fits, remnantValues, transactionReducer } from '../js/domain.js';
 import { createTask, selectTasks, getMetrics } from '../js/tasks.js';
 import { backupJSON, validateBackup, tasksCSV } from '../js/backup.js';
 const actor = { uid:'operator-1', email:'pcp@example.com' };
@@ -80,4 +80,11 @@ test('existing task search, filters, completion and CSV remain compatible',()=>{
 });
 test('unsafe Firebase keys and unsupported schemas are rejected',()=>{
   assert.throws(()=>apply(initialState(),{...remnant,id:'bad.key'}),/Identificador/);assert.throws(()=>apply({schemaVersion:2},remnant),/Estrutura/);
+});
+
+test('Firebase retry callbacks abort with an actionable error instead of throwing',()=>{
+  const operation=transactionReducer({type:'sheet-out',id:'carbono-2',quantity:1,eventId:'retry-cut'},actor,1700000000000);
+  const available=apply(initialState(),{type:'sheet-in',id:'carbono-2',quantity:1});
+  assert.equal(operation.update(available).sheets['carbono-2'].quantity,0);assert.equal(operation.error,null);
+  assert.equal(operation.update(initialState()),undefined);assert.match(operation.error.message,/Saldo insuficiente/);
 });

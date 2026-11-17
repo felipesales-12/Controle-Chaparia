@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut as firebaseSignOut, sendPasswordResetEmail, updatePassword as firebaseUpdatePassword, browserSessionPersistence } from 'firebase/auth';
 import { getDatabase, ref, onValue, runTransaction, serverTimestamp } from 'firebase/database';
 import { firebaseConfig } from '../firebase-config.js';
-import { initialState, applyOperation } from './domain.js';
+import { initialState, transactionReducer } from './domain.js';
 import { uniqueId } from './tasks.js';
 
 let auth, db, root, initialized, stopData, stopConnection, generation = 0;
@@ -86,8 +86,9 @@ export async function mutate(command) {
   const operation = { ...command, eventId: uniqueId() };
   saving = true; emit();
   try {
-    const result = await runTransaction(root, current => applyOperation(current, operation, actor, serverTimestamp()), { applyLocally: false });
-    if (!result.committed) throw new Error('A operação não foi confirmada pelo servidor. Atualize a lista.');
+    const transaction = transactionReducer(operation, actor, serverTimestamp());
+    const result = await runTransaction(root, transaction.update, { applyLocally: false });
+    if (!result.committed) throw transaction.error || new Error('A operação não foi confirmada pelo servidor. Atualize a lista.');
     if (epoch === generation) { snapshot = result.snapshot.val(); emit(); }
   } catch (error) { throw new Error(friendlyError(error)); }
   finally { saving = false; emit(); }

@@ -135,3 +135,16 @@ export function applyOperation(previous, command, actor, timestamp) {
   state.movements[eventId] = { id: eventId, type: command.type, entityId, description, reason: text(command.reason), actor: { uid: actor.uid, email: actor.email || '' }, timestamp, ...(before ? { before } : {}), ...(after ? { after } : {}) };
   return state;
 }
+
+// Firebase retries update callbacks asynchronously. Abort by returning undefined;
+// throwing inside a retry can escape the SDK and leave its transaction unresolved.
+export function transactionReducer(command, actor, timestamp) {
+  let error = null;
+  return {
+    update(current) {
+      try { error = null; return applyOperation(current, command, actor, timestamp); }
+      catch (cause) { error = cause; return undefined; }
+    },
+    get error() { return error; }
+  };
+}

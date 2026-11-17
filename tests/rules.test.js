@@ -2,7 +2,7 @@ import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { initialState, applyOperation } from '../js/domain.js';
+import { initialState, transactionReducer } from '../js/domain.js';
 let env;
 before(async()=>{env=await initializeTestEnvironment({projectId:'demo-chaparia',database:{host:'127.0.0.1',port:9000,rules:await readFile('database.rules.json','utf8')}});});
 beforeEach(async()=>{await env.clearDatabase();});
@@ -28,11 +28,11 @@ test('simultaneous initialization does not overwrite preexisting stock',async()=
 test('real database transactions serialize withdrawals and audit together',async()=>{
   const a=env.authenticatedContext('office').database().ref('chaparia'),b=env.authenticatedContext('shop').database().ref('chaparia');
   const seed=initialState();seed.sheets['carbono-2'].quantity=1;await a.set(seed);
-  await Promise.all([new Promise(resolve=>a.once('value',resolve)),new Promise(resolve=>b.once('value',resolve))]);
-  // Keep both caches synchronized while the SDK retries optimistic transactions.
-  const listen=()=>{};a.on('value',listen);b.on('value',listen);
-  const actor={uid:'office',email:'pcp@example.com'};
-  const results=await Promise.allSettled([a.transaction(value=>applyOperation(value,{type:'sheet-out',id:'carbono-2',quantity:1,eventId:'office-cut'},actor,Date.now()),undefined,false),b.transaction(value=>applyOperation(value,{type:'sheet-out',id:'carbono-2',quantity:1,eventId:'shop-cut'},actor,Date.now()),undefined,false)]);
+  // Hold listeners before waiting, matching the production onValue lifecycle.
+  await Promise.all([new Promise(resolve=>a.on('value',snap=>{if(snap.exists())resolve();})),new Promise(resolve=>b.on('value',snap=>{if(snap.exists())resolve();}))]);
+  const office=transactionReducer({type:'sheet-out',id:'carbono-2',quantity:1,eventId:'office-cut'},{uid:'office',email:'pcp@example.com'},Date.now());
+  const shop=transactionReducer({type:'sheet-out',id:'carbono-2',quantity:1,eventId:'shop-cut'},{uid:'shop',email:'fabrica@example.com'},Date.now());
+  const results=await Promise.allSettled([a.transaction(office.update,undefined,false),b.transaction(shop.update,undefined,false)]);
   assert.equal(results.filter(r=>r.status==='fulfilled'&&r.value.committed).length,1);
-  const final=(await a.get()).val();assert.equal(final.sheets['carbono-2'].quantity,0);assert.equal(Object.keys(final.movements).length,1);a.off('value',listen);b.off('value',listen);
+  const final=(await a.get()).val();assert.equal(final.sheets['carbono-2'].quantity,0);assert.equal(Object.keys(final.movements).length,1);a.off('value');b.off('value');
 });
