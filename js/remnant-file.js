@@ -3,6 +3,8 @@ import JSZip from 'jszip';
 const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const numeric = value => Number(String(value ?? '').replace(',', '.'));
 const positive = value => Number.isFinite(numeric(value)) && numeric(value) > 0;
+const validCode = /^(?:CAR|INOX)-\d+$/;
+const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 function xml(source) {
   const doc = new DOMParser().parseFromString(source, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('A planilha contém XML inválido.');
@@ -32,7 +34,7 @@ export function validateRemnantCorrections(corrections) {
   if (!Array.isArray(corrections) || !corrections.length || corrections.length > 1000) throw new Error('Correções de medidas inválidas.');
   const codes = new Set();
   for (const row of corrections) {
-    if (!Array.isArray(row) || !/^CAR-\d+$/.test(row[0] || '') || codes.has(row[0]) || !row.slice(1, 4).every(n => typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= 1000000) || row.length < 4 || !Number.isSafeInteger(row[3]) || (row[4] && row[1] !== row[2])) throw new Error('Confira código, medidas e quantidade das correções.');
+    if (!Array.isArray(row) || !validCode.test(row[0] || '') || codes.has(row[0]) || !row.slice(1, 4).every(n => typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= 1000000) || row.length < 4 || !Number.isSafeInteger(row[3]) || (row[4] && row[1] !== row[2])) throw new Error('Confira código, medidas e quantidade das correções.');
     codes.add(row[0]);
   }
   return corrections;
@@ -79,31 +81,51 @@ export async function readRemnantFile(file) {
     const value = elements(cell, 'v')[0]?.textContent ?? '';
     return [column, cell.getAttribute('t') === 's' ? strings[Number(value)] : cell.getAttribute('t') === 'inlineStr' ? elements(cell, 't').map(t => t.textContent).join('') : value];
   })));
-  const header = rows.find(row => row.A === 'Código');
-  if (!header || header.B !== 'Material' || header.C !== 'Espessura (mm)' || header.E !== 'Comprimento (mm)' || header.F !== 'Largura (mm)' || header.G !== 'Qtd.') throw new Error('As colunas da planilha não correspondem ao cadastro de retalhos.');
-  const records = [], pending = [], warnings = [];
-  for (const row of rows.filter(row => /^CAR-\d+$/.test(row.A || ''))) {
+  return parseRemnantRows(rows, file.name);
+}
+
+export function parseRemnantRows(rows, filename) {
+  const header = rows.find(row => Object.values(row).some(value => normalize(value) === 'codigo'));
+  if (!header) throw new Error('Não encontrei os cabeçalhos do cadastro de retalhos.');
+  const column = (...names) => Object.keys(header).find(key => names.includes(normalize(header[key])));
+  const columns = {
+    code: column('codigo'), material: column('material'), thickness: column('espessura (mm)'), format: column('formato'),
+    length: column('comprimento (mm)'), width: column('largura (mm)'), diameter: column('diametro (mm)'), quantity: column('qtd.', 'qtd', 'quantidade'),
+    origin: column('origem'), order: column('linha na coluna', 'ordem na coluna'), annotation: column('anotacao original', 'medida transcrita'), status: column('situacao'), notes: column('observacao', 'observacoes')
+  };
+  if (['code','material','thickness','format','length','width','quantity'].some(key => !columns[key])) throw new Error('As colunas da planilha não correspondem ao cadastro de retalhos.');
+  const get = (row, key) => row[columns[key]] ?? '';
+  const records = [], pending = [], warnings = [], materials = new Set();
+  for (const row of rows.filter(row => validCode.test(get(row, 'code')))) {
+    const code = get(row, 'code');
+    const material = ({ carbono: 'carbono', 'aco carbono': 'carbono', inox: 'inox', 'aco inox': 'inox', 'aco inoxidavel': 'inox' })[normalize(get(row, 'material'))];
+    if (!material || (code.startsWith('INOX-') ? material !== 'inox' : material !== 'carbono')) throw new Error(`${code}: confira o material e o prefixo do código.`);
+    materials.add(material);
     const record = {
-      code: row.A, material: /^carbono$|^aço carbono$/i.test(row.B || '') ? 'carbono' : '',
-      thickness: numeric(row.C), width: numeric(row.F), length: numeric(row.E), quantity: numeric(row.G), location: row.A,
-      notes: `Origem: ${file.name}; ${row.H || ''}, linha ${row.I || ''}. Anotação: ${row.J || ''}. Prateleira não informada.`
+      code, material, thickness: numeric(get(row, 'thickness')), width: numeric(get(row, 'width')), length: numeric(get(row, 'length')), quantity: numeric(get(row, 'quantity')), location: code,
+      notes: `Origem: ${filename}; ${get(row, 'origin')}, linha ${get(row, 'order')}. Anotação: ${get(row, 'annotation')}. Prateleira não informada.`
     };
-    const diameter = row.D === 'Circular' && /^Ø\s*(\d+(?:[.,]\d+)?)$/i.exec(row.J || '');
-    if (diameter) {
-      record.width = record.length = numeric(diameter[1]);
-      record.notes += ` Circular Ø${record.width} mm; cadastro ${record.width} × ${record.width} mm. Peso estimado pelo envelope retangular.`;
+    if (get(row, 'notes')) record.notes += ` Observação de origem: ${get(row, 'notes')}.`;
+    const circular = normalize(get(row, 'format')) === 'circular';
+    const writtenDiameter = /^[Ø⌀]\s*(\d+(?:[.,]\d+)?)(?:\s*mm)?$/i.exec(get(row, 'annotation'));
+    const diameter = positive(get(row, 'diameter')) ? numeric(get(row, 'diameter')) : writtenDiameter ? numeric(writtenDiameter[1]) : 0;
+    if (circular && diameter > 0) {
+      record.width = record.length = diameter;
+      record.notes += ` Circular Ø${diameter} mm; cadastro ${diameter} × ${diameter} mm. Peso estimado pelo envelope retangular.`;
     }
-    if (!record.material || !positive(record.thickness) || !positive(record.quantity)) throw new Error(`${row.A}: material, espessura ou quantidade inválidos.`);
-    if (row.D === 'Indefinido' || !positive(record.width) || !positive(record.length)) {
-      pending.push({ ...record, original: row.J || '', width: '', length: '' });
+    if (!positive(record.thickness) || !positive(record.quantity)) throw new Error(`${code}: espessura ou quantidade inválidos.`);
+    if (normalize(get(row, 'format')) === 'indefinido' || (circular && !diameter) || !positive(record.width) || !positive(record.length)) {
+      pending.push({ ...record, original: get(row, 'annotation'), width: '', length: '' });
     } else {
-      if (row.K && row.K !== 'Transcrito' && !diameter) {
-        record.notes += ` Conferência indicada na origem: ${row.K}.`;
-        warnings.push(`${row.A}: conferir ${record.length} × ${record.width} mm.`);
+      const status = get(row, 'status');
+      if (status && !['transcrito', 'conferido'].includes(normalize(status))) {
+        record.notes += ` Conferência indicada na origem: ${status}.`;
+        warnings.push(`${code}: conferir ${record.length} × ${record.width} mm.`);
       }
       records.push(record);
     }
   }
-  if (records.length + pending.length === 0 || records.length + pending.length > 1000) throw new Error('A planilha deve conter de 1 a 1.000 registros CAR-.');
-  return { batch: { format: 'chaparia-retalhos', version: 1, batchId: 'controle-retalhos-carbono', source: file.name, records }, pending, warnings };
+  if (records.length + pending.length === 0 || records.length + pending.length > 1000) throw new Error('A planilha deve conter de 1 a 1.000 registros CAR- ou INOX-.');
+  if (materials.size !== 1) throw new Error('Importe carbono e inox em planilhas separadas para preservar a identificação dos lotes.');
+  return { batch: { format: 'chaparia-retalhos', version: 1, batchId: 'controle-retalhos-' + [...materials][0], source: filename, records }, pending, warnings };
 }

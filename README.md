@@ -95,9 +95,9 @@ A exportação captura o estoque uma única vez para manter o arquivo consistent
 
 ## Importar retalhos de uma planilha
 
-Em **Retalhos → Importar planilha**, selecione um `.xlsx` com a aba **Cadastro de retalhos** e as colunas Código, Material, Espessura (mm), Formato, Comprimento (mm), Largura (mm), Qtd., Origem, Linha na coluna, Anotação original e Situação. O leitor aceita os namespaces XML do arquivo original e lê somente valores; não executa fórmulas ou instruções de outras abas.
+Em **Retalhos → Importar planilha**, selecione um `.xlsx` que contenha a aba **Cadastro de retalhos**, com as colunas Código, Material, Espessura (mm), Formato, Comprimento (mm), Largura (mm) e Qtd. O leitor identifica os cabeçalhos, aceita os modelos de carbono (`CAR-`) e inox (`INOX-`) e reconhece a coluna adicional Diâmetro (mm) do inox. Origem, ordem, anotação, situação e observações são preservadas quando presentes. O leitor aceita os namespaces XML do arquivo original e lê somente valores; não executa fórmulas ou instruções de outras abas.
 
-Confira a prévia e preencha os registros pendentes de medida. Circulares com anotação `Ø290`, por exemplo, entram como **290 × 290 mm**, com o formato circular nas observações. O peso continua sendo uma estimativa pelo envelope retangular. Não é atribuída uma prateleira fictícia: o código original serve de identificação.
+Confira a prévia e preencha os registros pendentes de medida. Circulares com anotação `Ø290`, por exemplo, entram como **290 × 290 mm**, com o formato circular nas observações. O peso continua sendo uma estimativa pelo envelope retangular. Não é atribuída uma prateleira fictícia: o código original serve de identificação. As marcações de conferência permanecem nas observações, inclusive para peças circulares. A quantidade é lida da coluna Qtd., sem confusão com o diâmetro. Cada material usa um lote separado, e reenviar a planilha de inox não altera os retalhos de carbono já importados.
 
 Ao clicar em **Importar para a nuvem**, o sistema grava o lote inteiro e o histórico individual de cada retalho em uma transação autenticada. Espessuras numéricas ausentes, como 9,53 mm, entram separadamente no catálogo, com saldo de chapas zero; 9,35 mm permanece distinto. Materiais desconhecidos e espessuras arquivadas precisam ser cadastrados/reativados antes. Uma falha de validação impede a gravação de todo o lote.
 
@@ -165,8 +165,8 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **44 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **28 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **47 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **29 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
 - **14 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória; dois testes adicionais usam o SDK real para verificar o transporte HTTP alternativo, a política de conteúdo e o cancelamento da espera. Eles utilizam um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.

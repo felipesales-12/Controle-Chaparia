@@ -1,11 +1,15 @@
 import JSZip from 'jszip';
-export async function remnantWorkbook() {
+export async function remnantWorkbook(material = 'carbono') {
   const zip = new JSZip();
   const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
   zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/></Types>');
   zip.file('xl/workbook.xml', `<x:workbook xmlns:x="${ns}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><x:sheets><x:sheet name="Cadastro de retalhos" sheetId="1" r:id="rId1"/></x:sheets></x:workbook>`);
   zip.file('xl/_rels/workbook.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>');
-  const rows = [
+  const rows = material === 'inox' ? [
+    ['Código', 'Material', 'Espessura (mm)', 'Formato', 'Comprimento (mm)', 'Largura (mm)', 'Diâmetro (mm)', 'Qtd.', 'Origem', 'Ordem na coluna', 'Medida transcrita', 'Situação', 'Observação'],
+    ['INOX-9001', 'Aço inox', 1.5, 'Retangular', 800, 400, '', 2, 'Teste', 1, '800x400', 'Transcrito', ''],
+    ['INOX-9002', 'Aço inox', 6, 'Circular', '', '', 250, 3, 'Teste', 2, 'Ø250', 'Conferir foto', 'Disco circular']
+  ] : [
     ['Código', 'Material', 'Espessura (mm)', 'Formato', 'Comprimento (mm)', 'Largura (mm)', 'Qtd.', 'Origem', 'Linha na coluna', 'Anotação original', 'Situação'],
     ['CAR-9001', 'Carbono', 2, 'Retangular', 800, 400, 2, 'Teste', 1, '800x400', 'Transcrito'],
     ['CAR-9002', 'Carbono', 9.53, 'Circular', '', '', 1, 'Teste', 2, 'Ø290', 'Conferir foto'],

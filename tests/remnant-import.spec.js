@@ -71,3 +71,27 @@ test('a correction link applies quantities and dimensions after file selection w
   expect(data.remnants['controle-retalhos-carbono-CAR-9003'].quantity).toBe(25);
   expect(data.remnants['controle-retalhos-carbono-CAR-9003'].notes).toContain('Circular Ø300');
 });
+
+test('inox spreadsheet imports its separate quantity column and preserves carbon stock and repeated imports', async ({ page, request }) => {
+  await login(page);
+  for (const material of ['carbono','inox']) {
+    await page.getByRole('button', { name: 'Importar planilha' }).click();
+    await page.locator('#remnant-import-file').setInputFiles({ name:material+'.xlsx', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer:await remnantWorkbook(material) });
+    await expect(page.locator('#remnant-import-preview')).toContainText(material === 'inox' ? '2 registros novos · 5 peças' : '2 registros novos · 3 peças');
+    if (material === 'inox') {
+      await expect(page.locator('.import-records')).toContainText('250 × 250 mm');
+      await expect(page.locator('#remnant-import-preview')).toContainText('INOX-9002: conferir');
+    }
+    await page.getByRole('button', { name:'Importar para a nuvem' }).click();
+    await expect(page.locator('#inventory-dialog')).toBeHidden();
+  }
+  const state = await (await request.get('/__test/data')).json();
+  expect(Object.keys(state.remnants)).toHaveLength(4);
+  expect(state.remnants['controle-retalhos-carbono-CAR-9001'].quantity).toBe(2);
+  expect(state.remnants['controle-retalhos-inox-INOX-9001'].thickness).toBe(1.5);
+  expect(state.remnants['controle-retalhos-inox-INOX-9002'].quantity).toBe(3);
+  await page.getByRole('button', { name:'Importar planilha' }).click();
+  await page.locator('#remnant-import-file').setInputFiles({name:'inox.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:await remnantWorkbook('inox')});
+  await expect(page.locator('#remnant-import-preview')).toContainText('2 já importados serão ignorados');
+  await expect(page.getByRole('button',{name:'Importar para a nuvem'})).toBeDisabled();
+});

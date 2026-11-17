@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initialState, prepareRemnantImport, applyOperation, transactionReducer } from '../js/domain.js';
-import { applyRemnantCorrections } from '../js/remnant-file.js';
+import { applyRemnantCorrections, parseRemnantRows } from '../js/remnant-file.js';
 const actor = { uid: 'pcp', email: 'pcp@example.com' };
 const batch = records => ({ format: 'chaparia-retalhos', version: 1, batchId: 'test-batch', source: 'test.xlsx', records });
 const record = (code, extra = {}) => ({ code, material: 'carbono', thickness: 2, width: 400, length: 800, quantity: 1, location: code, notes: '', ...extra });
@@ -68,4 +68,39 @@ test('prepared corrections fill only matching pending codes, preserve source dat
   assert.equal(input.pending.length, 1);
   assert.throws(() => applyRemnantCorrections(input, [['CAR-9999', 300, 300, 1]]), /não contém/);
   assert.throws(() => applyRemnantCorrections(input, [['CAR-9002', 300, 300, 1.5]]), /Confira/);
+});
+
+const inoxRows = () => [
+  { A:'Código', B:'Material', C:'Espessura (mm)', D:'Formato', E:'Comprimento (mm)', F:'Largura (mm)', G:'Diâmetro (mm)', H:'Qtd.', I:'Origem', J:'Ordem na coluna', K:'Medida transcrita', L:'Situação', M:'Observação' },
+  { A:'INOX-9001', B:'Aço inox', C:1.5, D:'Retangular', E:800, F:400, H:2, I:'Teste', J:1, K:'800x400', L:'Transcrito' },
+  { A:'INOX-9002', B:'Aço inox', C:6, D:'Circular', G:250, H:3, I:'Teste', J:2, K:'Ø250', L:'Conferir foto', M:'Disco circular' }
+];
+test('inox headers keep diameter and quantity distinct, preserve 1.5mm and retain source warnings', () => {
+  const parsed = parseRemnantRows(inoxRows(), 'inox.xlsx');
+  assert.equal(parsed.batch.batchId, 'controle-retalhos-inox');
+  assert.equal(parsed.batch.records.length, 2);
+  assert.equal(parsed.batch.records[0].thickness, 1.5);
+  const circle = parsed.batch.records[1];
+  assert.equal(circle.width, 250); assert.equal(circle.length, 250); assert.equal(circle.quantity, 3);
+  assert.match(circle.notes, /Disco circular/); assert.match(circle.notes, /Conferir foto/);
+  assert.equal(parsed.warnings.length, 1);
+});
+test('inox batch preserves earlier carbon imports and blocks repeat stock after consumption', () => {
+  const carbon = { ...batch([record('CAR-9001')]), batchId:'controle-retalhos-carbono' };
+  const importedCarbon = apply(initialState(), carbon);
+  const inox = parseRemnantRows(inoxRows(), 'inox.xlsx').batch;
+  let state = apply(importedCarbon, inox, 'inox-import');
+  assert.equal(state.remnants['controle-retalhos-carbono-CAR-9001'].quantity, 1);
+  assert.equal(state.remnants['controle-retalhos-inox-INOX-9002'].quantity, 3);
+  state = applyOperation(state, {type:'remnant-consume',id:'controle-retalhos-inox-INOX-9002',revision:1,eventId:'inox-consume'}, actor, 1700000003000);
+  assert.equal(prepareRemnantImport(inox,state).skipped,2);
+  assert.throws(() => apply(state,inox,'repeat-inox'),/já foram importados/);
+  assert.equal(state.remnants['controle-retalhos-inox-INOX-9002'].quantity,0);
+});
+test('inox corrections accept original codes while mismatched material prefixes are rejected', () => {
+  const parsed = parseRemnantRows(inoxRows(), 'inox.xlsx');
+  const corrected = applyRemnantCorrections(parsed,[['INOX-9002',300,300,2,true]]);
+  assert.equal(corrected.batch.records[1].quantity,2);assert.equal(corrected.batch.records[1].width,300);
+  const wrong = inoxRows();wrong[1].B='Carbono';
+  assert.throws(()=>parseRemnantRows(wrong,'wrong.xlsx'),/prefixo/);
 });
