@@ -31,6 +31,40 @@ export function remnantValues(values, data = {}) {
   if (!location) throw new Error('Informe a identificação/prateleira do retalho.');
   return { ...material(values, data), width: number(values.width, 'Largura'), length: number(values.length, 'Comprimento'), quantity: number(values.quantity, 'Quantidade', true), location, notes: text(values.notes, 2000) };
 }
+
+// Recomputed inside the cloud transaction. Stable IDs prevent duplicate stock,
+// including after a previously imported item has been consumed or cut.
+export function prepareRemnantImport(batch, data) {
+  if (batch?.format !== 'chaparia-retalhos' || batch.version !== 1 || !Array.isArray(batch.records) || !batch.records.length || batch.records.length > 1000) throw new Error('Arquivo de importação de retalhos inválido. Use o formato chaparia-retalhos, versão 1, com até 1.000 registros.');
+  const batchId = validKey(batch.batchId), source = text(batch.source, 200);
+  const staged = { ...data, sheets: { ...data.sheets } }, entries = [], additions = [], codes = new Set();
+  let skipped = 0;
+  for (const record of batch.records) {
+    const code = validKey(record.code), id = validKey(`${batchId}-${code}`);
+    if (codes.has(code)) throw new Error(`Código repetido no arquivo: ${code}.`);
+    codes.add(code);
+    const existing = data.remnants?.[id];
+    if (existing) {
+      if (existing.importBatch !== batchId) throw new Error(`O identificador ${code} já pertence a outro cadastro. Nenhum registro foi substituído.`);
+      skipped++; continue;
+    }
+    const materials = getMaterials(staged);
+    if (!Object.hasOwn(materials, record.material)) throw new Error(`${code}: material não cadastrado.`);
+    const thickness = number(record.thickness, `${code}: espessura`);
+    if (thickness > 1000) throw new Error(`${code}: a espessura deve ser menor ou igual a 1.000 mm.`);
+    if (!materials[record.material].thicknesses.includes(thickness)) {
+      const old = Object.values(staged.sheets).find(s => s.material === record.material && s.thickness === thickness);
+      if (old) throw new Error(`${code}: esta espessura foi removida. Reative-a no catálogo antes de importar.`);
+      const typeId = validKey(sheetId(record.material, thickness));
+      if (staged.sheets[typeId]) throw new Error(`${code}: identificador de espessura em conflito.`);
+      const sheet = { id: typeId, material: record.material, thickness, width: 1500, length: 3000, quantity: 0, location: '', reorderPoint: 2, active: true, revision: 1 };
+      staged.sheets[typeId] = sheet; additions.push(sheet);
+    }
+    entries.push({ id, ...remnantValues(record, staged), importBatch: batchId });
+  }
+  return { batchId, source, entries, additions, skipped, pieces: entries.reduce((total, entry) => total + entry.quantity, 0) };
+}
+
 export function fits(remnant, width, length, rotate = true) {
   if (remnant.quantity <= 0 || width <= 0 || length <= 0) return false;
   return (remnant.width >= width && remnant.length >= length) || (rotate && remnant.width >= length && remnant.length >= width);
@@ -120,6 +154,28 @@ export function applyOperation(previous, command, actor, timestamp) {
       after = { id: command.id, ...remnantValues(command, state), revision: 1, createdAt: timestamp };
       state.remnants[command.id] = after;
       description = `Cadastro de ${after.quantity} retalho(s) · ${materialName(after.material, state)} ${after.thickness}mm · ${after.width}x${after.length}mm`;
+      break;
+    }
+    case 'remnant-import': {
+      const plan = prepareRemnantImport(command.batch, state);
+      if (!plan.entries.length) throw new Error('Todos os registros deste arquivo já foram importados. Nenhuma quantidade foi alterada.');
+      const log = (suffix, type, item, detail) => {
+        const id = validKey(`${command.eventId}-${suffix}`);
+        if (state.movements[id]) throw new Error('Esta importação já foi confirmada.');
+        state.movements[id] = { id, type, entityId: item.id, description: detail, reason: `Importação: ${plan.source}`, actor: { uid: actor.uid, email: actor.email || '' }, timestamp, after: item };
+      };
+      plan.additions.forEach((sheet, index) => {
+        state.sheets[sheet.id] = sheet;
+        log(`s${index}`, 'sheet-add', sheet, `Cadastro de espessura · ${materialName(sheet.material, state)} ${sheet.thickness}mm · saldo zero`);
+      });
+      plan.entries.forEach((entry, index) => {
+        const item = { ...entry, revision: 1, createdAt: timestamp };
+        state.remnants[item.id] = item;
+        log(`r${index}`, 'remnant-add', item, `Cadastro de ${item.quantity} retalho(s) · ${materialName(item.material, state)} ${item.thickness}mm · ${item.width}x${item.length}mm · ${item.location}`);
+      });
+      entityId = plan.batchId;
+      after = { imported: plan.entries.length, pieces: plan.pieces, skipped: plan.skipped, source: plan.source, addedThicknesses: plan.additions.map(s => ({ material: s.material, thickness: s.thickness })) };
+      description = `Importação de retalhos · ${plan.entries.length} registros · ${plan.pieces} peça(s) · ${plan.skipped} já importados`;
       break;
     }
     case 'remnant-consume': {

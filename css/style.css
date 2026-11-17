@@ -271,3 +271,16 @@ table td { font-size:11px; }
 .critical-list small { font-size:10px; }
 .section-heading:has(#remnant-order) { flex-wrap:wrap; }
 @media(max-width:700px) { .catalog-actions { width:100%; } .inventory-sort { min-width:0; width:100%; } .inventory-toolbar .inline-search { width:100%; } .inventory-toolbar .inline-search .inventory-sort { width:100%; } .catalog-actions .button { font-size:11px; } }
+
+.inventory-page-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.import-file { display:grid; gap:10px; margin:22px 0; }
+.import-file input { max-width:100%; }
+#remnant-import-preview .notice { margin:16px 0; }
+#remnant-import-preview p { font-size:12px; line-height:1.7; }
+#remnant-import-preview h3 { margin-top:22px; }
+.import-pending small { display:block; color:var(--muted); }
+.import-pending input { min-width:95px; width:100%; }
+.import-pending table { min-width:600px; }
+.import-records { margin-top:20px; }
+.import-records .table-scroll { max-height:300px; overflow:auto; margin-top:12px; }
+@media(max-width:700px) { .page-heading:has(.inventory-page-actions) { flex-wrap:wrap; } }

@@ -4,6 +4,7 @@ import { backupJSON, tasksCSV, validateBackup, download } from './backup.js';
 import { icon } from './icons.js';
 import { inventoryDashboard, sheetsPage, remnantsPage, movementsPage, initializeInventory } from './inventory.js';
 import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, ensureMovementHistory, retryCloud, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
+import { consumeRemnantImportLink } from './remnant-import-ui.js';
 import { accountPage } from './account.js';
 import { weightsPage, initializeWeights } from './weights-page.js';
 
@@ -23,7 +24,7 @@ const channel = globalThis.BroadcastChannel ? new BroadcastChannel('compasso-upd
 
 document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.icon); });
 
-function getPage() { const name = location.hash.slice(1); return Object.hasOwn(labels, name) ? name : 'dashboard'; }
+function getPage() { const name = location.hash.slice(1).split('?')[0]; return Object.hasOwn(labels, name) ? name : 'dashboard'; }
 function applyTheme() {
   const theme = settings.theme || 'system';
   const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -64,6 +65,7 @@ function render() {
   $('#save-status').textContent = lastSaved ? `Salvo ${inCloud ? 'na nuvem' : 'neste navegador'} às ${new Date(lastSaved).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : inCloud ? 'Dados da conta na nuvem' : 'Dados armazenados neste navegador';
   $('#main').innerHTML = page === 'dashboard' ? inventoryDashboard(metrics) : page === 'chapas' ? sheetsPage() : page === 'retalhos' ? remnantsPage() : page === 'pesos' ? weightsPage() : page === 'movimentacoes' ? movementsPage() : page === 'resumo' ? dashboard(metrics) : page === 'backup' ? backupPage() : page === 'configuracoes' ? settingsPage() : page === 'conta' ? accountPage() : listPage();
   updateCloudChrome();
+  if (page === 'retalhos') void consumeRemnantImportLink(notify);
   if (focusId) {
     const replacement = document.getElementById(focusId);
     if (replacement && replacement !== focused) { replacement.focus(); if (selection) replacement.setSelectionRange(...selection); }

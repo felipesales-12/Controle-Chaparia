@@ -8,20 +8,20 @@
     "build": "node scripts/build.mjs",
     "start": "npm run build && node scripts/preview.mjs",
     "preview": "node scripts/preview.mjs",
-    "test": "node --test tests/domain.test.js tests/weights.test.js tests/weights-excel.test.js tests/catalog.test.js",
+    "test": "node --test tests/domain.test.js tests/weights.test.js tests/weights-excel.test.js tests/catalog.test.js tests/remnant-import.test.js",
     "test:e2e": "playwright test",
     "test:rules": "firebase emulators:exec --only database --project demo-chaparia 'node --test tests/rules.test.js'"
   },
   "dependencies": {
     "exceljs": "4.4.0",
-    "firebase": "12.6.0"
+    "firebase": "12.6.0",
+    "jszip": "3.10.1"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.0",
     "@playwright/test": "1.61.1",
     "esbuild": "0.27.0",
     "firebase-tools": "14.26.0",
-    "jszip": "3.10.1",
     "saxes": "6.0.0"
   }
 }

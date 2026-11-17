@@ -93,6 +93,18 @@ O relatório inclui todos os dados cadastrais de estoque dessas categorias, inde
 
 A exportação captura o estoque uma única vez para manter o arquivo consistente. Ela informa o usuário, o horário de emissão em Brasília e se a conexão estava disponível; sem conexão, usa o último estoque recebido e destaca essa condição. O arquivo é um retrato independente: exporte novamente para obter alterações posteriores. O exportador ExcelJS é incluído no mesmo arquivo JavaScript do aplicativo, sem carregamento dinâmico ou serviço externo ao clicar para exportar. O build gera um nome de arquivo por versão para evitar reutilização de código antigo pelo cache.
 
+## Importar retalhos de uma planilha
+
+Em **Retalhos → Importar planilha**, selecione um `.xlsx` com a aba **Cadastro de retalhos** e as colunas Código, Material, Espessura (mm), Formato, Comprimento (mm), Largura (mm), Qtd., Origem, Linha na coluna, Anotação original e Situação. O leitor aceita os namespaces XML do arquivo original e lê somente valores; não executa fórmulas ou instruções de outras abas.
+
+Confira a prévia e preencha os registros pendentes de medida. Circulares com anotação `Ø290`, por exemplo, entram como **290 × 290 mm**, com o formato circular nas observações. O peso continua sendo uma estimativa pelo envelope retangular. Não é atribuída uma prateleira fictícia: o código original serve de identificação.
+
+Ao clicar em **Importar para a nuvem**, o sistema grava o lote inteiro e o histórico individual de cada retalho em uma transação autenticada. Espessuras numéricas ausentes, como 9,53 mm, entram separadamente no catálogo, com saldo de chapas zero; 9,35 mm permanece distinto. Materiais desconhecidos e espessuras arquivadas precisam ser cadastrados/reativados antes. Uma falha de validação impede a gravação de todo o lote.
+
+O mesmo código no mesmo lote nunca aumenta o estoque novamente, inclusive depois de baixa ou corte. Uma versão corrigida pode acrescentar códigos novos, mas não substitui cadastros já importados. Arquivos JSON no formato `chaparia-retalhos`, versão 1, também são aceitos. Limites: 5 MB por arquivo e 1.000 registros por lote.
+
+Links preparados podem carregar um lote completo ou correções de medidas e quantidades. No segundo caso, selecione a planilha original para aplicar as correções automaticamente. A prévia abre após o login, e o fragmento da URL é removido após a leitura. O link sozinho não grava estoque: a gravação ocorre pelo botão de importação. Os dados da planilha não são incluídos no repositório ou no build público.
+
 ## Ativar o Firebase
 
 O passo a passo ilustrado por telas e comandos está em [docs/CONFIGURACAO.md](docs/CONFIGURACAO.md). Resumo:
@@ -153,9 +165,9 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **37 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **24 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
-- **13 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
+- **44 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **28 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **14 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória; dois testes adicionais usam o SDK real para verificar o transporte HTTP alternativo, a política de conteúdo e o cancelamento da espera. Eles utilizam um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
 

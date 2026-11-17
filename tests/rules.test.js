@@ -109,3 +109,22 @@ test('lightweight listeners initialize an empty database and stop delivering dat
   const state=await ready;assert.equal(Object.keys(state.data.sheets).length,14);watcher.stop();const count=calls;
   await db.ref('chaparia/sheets/carbono-2/quantity').set(4);await new Promise(resolve=>setTimeout(resolve,30));assert.equal(calls,count);
 });
+
+test('concurrent batch imports commit stock, a new exact thickness and per-record audit only once',{timeout:15000},async()=>{
+  const { commitSharedTransaction }=await import('../js/shared-data.js');
+  const a=env.authenticatedContext('office').database(),b=env.authenticatedContext('shop').database();
+  await a.ref('chaparia').set(initialState());
+  const batch={format:'chaparia-retalhos',version:1,batchId:'test-batch',source:'test.xlsx',records:[
+    {code:'CAR-9001',material:'carbono',thickness:9.53,width:330,length:330,quantity:25,location:'CAR-9001',notes:'Circular'},
+    {code:'CAR-9002',material:'carbono',thickness:2,width:500,length:800,quantity:1,location:'CAR-9002',notes:''}
+  ]};
+  const office=transactionReducer({type:'remnant-import',batch,eventId:'office-import'},{uid:'office',email:'pcp@example.com'},1700000000000);
+  const shop=transactionReducer({type:'remnant-import',batch,eventId:'shop-import'},{uid:'shop',email:'shop@example.com'},1700000000000);
+  const results=await Promise.all([commitSharedTransaction(modularRef(a,'chaparia'),office.update),commitSharedTransaction(modularRef(b,'chaparia'),shop.update)]);
+  assert.equal(results.filter(r=>r.committed).length,1);
+  const state=(await a.ref('chaparia').get()).val();
+  assert.equal(Object.keys(state.remnants).length,2);assert.equal(state.remnants['test-batch-CAR-9001'].quantity,25);
+  assert.equal(state.sheets['carbono-9_53'].quantity,0);assert.equal(state.sheets['carbono-9_35'].quantity,0);
+  assert.equal(Object.keys(state.movements).length,4);
+  assert.equal(Object.values(state.movements).filter(m=>m.type==='remnant-add').length,2);
+});
