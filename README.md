@@ -56,6 +56,25 @@ Peso (kg) = largura (mm) × comprimento (mm) × espessura (mm)
 
 Densidades de referência: **Aço Carbono 7.850 kg/m³** e **Aço Inox 8.000 kg/m³**. Por exemplo, uma chapa de aço carbono de 3000 × 1500 × 2 mm pesa aproximadamente **70,65 kg**. A liga específica pode alterar o peso real. Retalhos em L ou com furos são estimados pelo retângulo cadastrado, sem descontar recortes. Essas premissas aparecem na própria tela. Os pesos são derivados do estoque, sem gravar um saldo paralelo no banco.
 
+### Peso de uma peça e planilha Excel
+
+Em **Pesos → Peso por peça**, consulte o peso unitário de cada cadastro, sua quantidade disponível e o peso total correspondente. Chapas inteiras e retalhos aparecem em tabelas separadas com identificação, aço, espessura, medidas, localização, observações e situação. Uma linha representa um cadastro de peças iguais; não são inventados identificadores individuais para as unidades do lote.
+
+O botão **Exportar Excel (.xlsx)** gera um arquivo com quatro abas:
+
+| Aba | Conteúdo |
+| --- | --- |
+| Resumo | Indicadores de peso e tabela por aço/espessura, com chapas e retalhos separados |
+| Chapas inteiras | Todo o catálogo, peso de uma chapa, quantidade e peso em estoque, medidas e localização |
+| Retalhos | Todos os cadastros, inclusive consumidos, peso unitário e do saldo, observações, ID de origem, data e revisão |
+| Critérios | Fórmula, densidades, unidades, premissas, uso dos filtros e instruções de leitura |
+
+A planilha tem cabeçalhos em azul escuro, destaque verde para retalhos e peso unitário, linhas alternadas, filtros por coluna, cabeçalhos/identificação fixos ao rolar, formatos numéricos com duas casas e configuração de impressão. As fórmulas de peso e os totais possuem resultados salvos para leitores que não recalculam automaticamente. O Excel recalcula ao abrir. Nos detalhes, **TOTAL VISÍVEL** acompanha os filtros; o resumo por aço/espessura considera todos os cadastros.
+
+O relatório inclui todos os dados cadastrais de estoque dessas categorias, independentemente da visualização aberta na tela. Atividades e histórico de movimentações continuam nas exportações próprias do sistema. Registros sem saldo mantêm seu peso unitário como referência, mas contribuem com **zero** para o peso em estoque.
+
+A exportação captura o estoque uma única vez para manter o arquivo consistente. Ela informa o usuário, o horário de emissão em Brasília e se a conexão estava disponível; sem conexão, usa o último estoque recebido e destaca essa condição. O arquivo é um retrato independente: exporte novamente para obter alterações posteriores. A biblioteca ExcelJS é carregada somente ao clicar para exportar, sem serviço externo para gerar o arquivo.
+
 ## Ativar o Firebase
 
 O passo a passo ilustrado por telas e comandos está em [docs/CONFIGURACAO.md](docs/CONFIGURACAO.md). Resumo:
@@ -116,8 +135,8 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **22 testes de lógica:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **15 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **27 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **18 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
 - **6 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória e um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
@@ -173,6 +192,7 @@ Controle-Chaparia/
 │   ├── inventory.js
 │   ├── tasks.js
 │   ├── weights.js
+│   ├── weights-excel.js
 │   ├── weights-page.js
 │   └── ui.js
 ├── scripts/
@@ -180,6 +200,7 @@ Controle-Chaparia/
 │   └── preview.mjs
 ├── tests/
 │   ├── domain.test.js
+│   ├── weights-excel.test.js
 │   ├── weights.test.js
 │   ├── rules.test.js
 │   ├── ui.spec.js

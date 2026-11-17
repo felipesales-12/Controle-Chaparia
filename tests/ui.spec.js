@@ -1,3 +1,5 @@
+import ExcelJS from 'exceljs';
+import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 const base='/Controle-Chaparia/';
 async function login(page,email='pcp@example.com'){
@@ -106,4 +108,39 @@ test('mobile weights navigation and tables keep the page within the screen',asyn
   await expect(page.locator('.weight-method')).toContainText('7.850 kg/m³');
   await expect(page.locator('.weight-method')).toContainText('8.000 kg/m³');
   await expect(page.locator('[data-weight-material=carbono] .table-scroll')).toHaveAttribute('tabindex','0');
+});
+test('unit-weight view separates each record from its total quantity and preserves its view during sync',async({page,request})=>{
+  await login(page);await entry(page,2);await page.goto(base+'#pesos');await page.getByRole('button',{name:'Peso por peça',exact:true}).click();
+  const sheet=page.locator('[data-weight-record="carbono-2"]');
+  await expect(sheet.locator('[data-weight-cell=unit]')).toHaveText('70,65 kg');await expect(sheet.locator('[data-weight-cell=stock]')).toHaveText('141,30 kg');
+  await request.post('/__test/mutate',{data:{actor:{uid:'factory',email:'fabrica@example.com'},command:{type:'remnant-add',id:'unit-remnant',material:'inox',thickness:2,width:500,length:1000,quantity:3,location:'R-01',notes:'<img src=x onerror=alert(1)> Corte em L'}}});
+  const remnant=page.locator('[data-weight-record="unit-remnant"]');await expect(remnant.locator('[data-weight-cell=unit]')).toHaveText('8,00 kg');await expect(remnant.locator('[data-weight-cell=stock]')).toHaveText('24,00 kg');
+  await expect(remnant.locator('.weight-record-notes')).toContainText('<img src=x');await expect(remnant.locator('img')).toHaveCount(0);
+  await request.post('/__test/mutate',{data:{actor:{uid:'factory',email:'fabrica@example.com'},command:{type:'remnant-consume',id:'unit-remnant',revision:1}}});
+  await expect(remnant.locator('[data-weight-cell=stock]')).toHaveText('0,00 kg');await expect(remnant).toContainText('Consumido');await expect(remnant.locator('[data-weight-cell=unit]')).toHaveText('8,00 kg');
+  await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.getByRole('button',{name:'Resumo por espessura',exact:true}).click();await expect(page.locator('.weight-table tbody tr')).toHaveCount(14);
+});
+test('browser downloads a styled real Excel workbook with unit weights and separate stock sheets',async({page,request})=>{
+  const excelRequests=[];page.on('request',request=>{if(request.url().includes('weights-excel-'))excelRequests.push(request.url());});
+  await login(page);await entry(page,2);await page.goto(base+'#pesos');expect(excelRequests).toHaveLength(0);
+  await request.post('/__test/mutate',{data:{actor:{uid:'factory',email:'fabrica@example.com'},command:{type:'remnant-add',id:'export-remnant',material:'inox',thickness:2,width:500,length:1000,quantity:3,location:'R-01',notes:'Furo no canto'}}});
+  await expect(page.locator('[data-weight-summary=remnant] strong')).toHaveText('24,00 kg');
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();const download=await pending;
+  expect(download.suggestedFilename()).toMatch(/^chaparia-pesos-\d{4}-\d{2}-\d{2}\.xlsx$/);expect(excelRequests.length).toBeGreaterThan(0);
+  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readFile(await download.path()));
+  expect(workbook.worksheets.map(s=>s.name)).toEqual(['Resumo','Chapas inteiras','Retalhos','Critérios']);
+  expect(workbook.getWorksheet('Chapas inteiras').getCell('G9').result).toBeCloseTo(70.65);expect(workbook.getWorksheet('Chapas inteiras').getCell('H9').result).toBeCloseTo(141.3);
+  expect(workbook.getWorksheet('Retalhos').getCell('G9').result).toBe(8);expect(workbook.getWorksheet('Retalhos').getCell('H9').result).toBe(24);expect(workbook.getWorksheet('Retalhos').getCell('K9').value).toBe('Furo no canto');
+  expect(workbook.getWorksheet('Resumo').getCell('E7').result).toBeCloseTo(165.3);expect(workbook.getWorksheet('Resumo').getCell('A1').fill.fgColor.argb).toBe('FF142F3E');
+  await expect(page.getByRole('button',{name:'Exportar Excel (.xlsx)'})).toBeEnabled();
+  await page.evaluate(()=>window.__qa.disconnect());const pendingOffline=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();const offline=await pendingOffline;const offlineBook=new ExcelJS.Workbook();await offlineBook.xlsx.load(await readFile(await offline.path()));expect(offlineBook.getWorksheet('Resumo').getCell('A4').value).toContain('SEM CONEXÃO');
+});
+test('an Excel export pending during sign-out cannot download stock after the session ends',async({page})=>{
+  await login(page);await page.goto(base+'#pesos');
+  let release;let received;const arrived=new Promise(resolve=>{received=resolve;});const downloads=[];page.on('download',download=>downloads.push(download));
+  await page.route('**/weights-excel-*.js',route=>{release=()=>route.continue();received();});
+  await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();await arrived;
+  await page.goto(base+'#conta');await page.getByRole('button',{name:'Sair da conta',exact:true}).click();await expect(page.locator('#login-screen')).toBeVisible();
+  await release();await expect(page.locator('.toast.error')).toContainText('A sessão mudou');expect(downloads).toHaveLength(0);
 });

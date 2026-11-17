@@ -38,3 +38,20 @@ export function stockWeightSummary(data = {}) {
     totalKg: materials.reduce((sum, group) => sum + group.totalKg, 0)
   };
 }
+
+// One row per inventory record; identical pieces share their unit weight.
+export function stockWeightDetails(data = {}) {
+  const collect = collection => Object.entries(data[collection] || {}).map(([key, item]) => {
+    const quantity = Number(item.quantity);
+    const unitKg = pieceWeightKg(item);
+    return {
+      ...item, id: item.id || key,
+      quantity: Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 0,
+      density: STEEL_DENSITIES[item.material] || 0,
+      unitKg, totalKg: unitKg * (Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 0),
+      status: quantity > 0 ? 'Disponível' : collection === 'remnants' ? 'Consumido' : 'Sem estoque'
+    };
+  }).sort((a, b) => Object.keys(MATERIALS).indexOf(a.material) - Object.keys(MATERIALS).indexOf(b.material)
+    || Number(a.thickness) - Number(b.thickness) || String(a.id).localeCompare(String(b.id), 'pt-BR'));
+  return { sheets: collect('sheets'), remnants: collect('remnants') };
+}

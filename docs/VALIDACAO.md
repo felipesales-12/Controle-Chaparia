@@ -38,3 +38,10 @@ O teste final com duas contas reais, dois aparelhos e as regras publicadas está
 Verificação adicional em 17/11/2026: **22 testes de lógica e 15 testes de interface aprovados localmente**, com build de produção concluído. As regras e o esquema do banco permanecem iguais aos da verificação acima.
 
 Os novos casos conferem conversão de mm³ para kg, densidades diferentes por aço, agrupamento por espessura, retalhos de dimensões variadas, saldo zero, corte com sub-retalho, atualização automática da tela e navegação em celular. Exemplo de referência: uma chapa de aço carbono de 3000 × 1500 × 2 mm corresponde a 70,65 kg.
+
+
+## Peso por peça e exportação Excel
+
+Verificação adicional em 17/11/2026: **27 testes de lógica/exportação e 18 testes de interface aprovados localmente**, com build de produção concluído.
+
+A nova cobertura verifica a separação entre peso unitário e peso do saldo, os metadados completos dos cadastros, retalhos consumidos, fórmulas e resultados numéricos no XLSX, filtros, estilos, cabeçalhos fixos, impressão, estoque vazio, exportação sem conexão, download real no Chromium, cancelamento da exportação ao sair da conta e carregamento da biblioteca somente ao exportar. A leitura independente com openpyxl também confirmou a integridade do arquivo, as fórmulas e seus valores salvos. Não foi feita validação visual no aplicativo Microsoft Excel neste ambiente.

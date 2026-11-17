@@ -248,3 +248,17 @@ table td { font-size:11px; }
 .weight-table tfoot th,.weight-table tfoot td { border-top:1px solid var(--border); padding:16px 22px; font-weight:700; font-size:11px; }
 @media(max-width:900px) { .weight-metrics { gap:12px; } .weight-metric { padding:17px; } .weight-metric>div { font-size:11px; } }
 @media(max-width:600px) { .weight-metrics { grid-template-columns:1fr; } .weight-metric { padding:18px; } .weight-metric>strong { font-size:30px; margin:12px 0 6px; } .weight-panel .panel-heading { align-items:flex-start; flex-wrap:wrap; gap:12px; } .weight-material-total { text-align:left; } .weight-material-total>strong { font-size:19px; } }
+.weight-controls { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px; flex-wrap:wrap; }
+.weight-controls>span { font-size:10px; color:var(--muted); }
+.weight-detail-note { font-size:12px; color:var(--muted); margin:0 0 20px; line-height:1.8; }
+.weight-detail-note strong { color:var(--ink); }
+.weight-detail-table { min-width:1200px; }
+.weight-detail-table tbody td { padding-block:17px; vertical-align:top; }
+.weight-detail-table tbody td:nth-child(n+2):nth-child(-n+6) { white-space:nowrap; font-variant-numeric:tabular-nums; text-align:right; }
+.weight-detail-table thead th:nth-child(n+2):nth-child(-n+6) { text-align:right; }
+.weight-record-id { display:block; margin-top:5px; font-size:9px; color:var(--muted); max-width:200px; overflow-wrap:anywhere; }
+.weight-record-notes { min-width:180px; max-width:300px; overflow-wrap:anywhere; }
+.weight-record-notes strong { display:block; font-weight:550; }
+.weight-record-notes small { display:block; margin-top:5px; color:var(--muted); white-space:pre-wrap; }
+.weight-per-piece { color:var(--green); font-weight:750; background:var(--surface-soft); }
+@media(max-width:600px) { .weight-controls { align-items:flex-start; } .weight-controls .segmented { width:100%; } .weight-controls .segmented button { flex:1; } .weight-controls>span { font-size:10px; line-height:1.6; } }

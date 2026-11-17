@@ -5,7 +5,7 @@ import { icon } from './icons.js';
 import { inventoryDashboard, sheetsPage, remnantsPage, movementsPage, initializeInventory } from './inventory.js';
 import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
 import { accountPage } from './account.js';
-import { weightsPage } from './weights-page.js';
+import { weightsPage, initializeWeights } from './weights-page.js';
 
 const $ = selector => document.querySelector(selector);
 const html = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -404,6 +404,7 @@ document.addEventListener('submit', async event => {
   finally { button.disabled = false; cloudTransition = false; }
 });
 initializeInventory({ redraw: render, notify, confirm: confirmAction });
+initializeWeights({ redraw: render, notify });
 for (const id of ['task-dialog','confirm-dialog']) document.getElementById(id).addEventListener('cancel', event => { if (busy || cloudState().saving) event.preventDefault(); });
 initialize().catch(error => { $('#login-status').textContent=error.message; });
 // Retire the legacy offline cache for this site's scope only.
