@@ -1,6 +1,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { ref as modularRef } from 'firebase/database';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { initialState, transactionReducer } from '../js/domain.js';
 let env;
@@ -62,7 +63,7 @@ test('archive metadata preserves a legacy sheet while rejecting invalid state ty
   assert.equal((await db.ref('chaparia/sheets/carbono-2/quantity').get()).val(),0);
 });
 
-test('stock becomes ready with bounded recent history; complete audit loads only on request',async()=>{
+test('stock becomes ready with bounded recent history; complete audit loads only on request',{timeout:15000},async()=>{
   const { watchSharedData, commitSharedTransaction }=await import('../js/shared-data.js');
   const db=env.authenticatedContext('pcp').database();const state=initialState();
   state.movements=Object.fromEntries(Array.from({length:160},(_,i)=>{const id=`event-${String(i).padStart(3,'0')}`;return[id,{id,type:'sheet-in',description:'Entrada',actor:{uid:'pcp'},timestamp:1700000000000+i}];}));
@@ -74,14 +75,14 @@ test('stock becomes ready with bounded recent history; complete audit loads only
     await until(()=>Object.keys(seen.at(-1).data.movements||{}).length===100);
     assert.equal(seen.at(-1).data.movements['event-000'],undefined);assert.ok(seen.at(-1).data.movements['event-159']);
     const operation=transactionReducer({type:'sheet-in',id:'carbono-2',quantity:1,eventId:'new-entry'},{uid:'pcp',email:'pcp@example.com'},1700000001000);
-    const result=await commitSharedTransaction(db.ref('chaparia'),operation.update);assert.ok(result.committed);
+    const result=await commitSharedTransaction(modularRef(db,'chaparia'),operation.update);assert.ok(result.committed);
     assert.equal(Object.keys(result.snapshot.val().movements).length,161);assert.equal(result.snapshot.val().sheets['carbono-2'].quantity,1);
     watcher.loadHistory();await until(()=>seen.at(-1).historyLoaded);
     assert.equal(Object.keys(seen.at(-1).data.movements).length,161);assert.ok(seen.at(-1).data.movements['event-000']);
   }finally{watcher.stop();}
 });
 
-test('lightweight listeners initialize an empty database and stop delivering data after logout',async()=>{
+test('lightweight listeners initialize an empty database and stop delivering data after logout',{timeout:15000},async()=>{
   const { watchSharedData }=await import('../js/shared-data.js');const db=env.authenticatedContext('pcp').database();
   let resolveReady,rejectReady;const ready=new Promise((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});let calls=0;
   const watcher=watchSharedData(db,{onChange:value=>{calls++;if(value.loaded)resolveReady(value);},onError:rejectReady});
