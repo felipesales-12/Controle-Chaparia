@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { assertWorkbookSequences } from './ooxml-structure.js';
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 const base='/Controle-Chaparia/';
@@ -128,7 +129,7 @@ test('browser downloads a styled real Excel workbook with unit weights and separ
   await expect(page.locator('[data-weight-summary=remnant] strong')).toHaveText('24,00 kg');
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();const download=await pending;
   expect(download.suggestedFilename()).toMatch(/^chaparia-pesos-\d{4}-\d{2}-\d{2}\.xlsx$/);expect(excelRequests.length).toBeGreaterThan(0);
-  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readFile(await download.path()));
+  const fileBuffer=await readFile(await download.path());await assertWorkbookSequences(fileBuffer);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(fileBuffer);
   expect(workbook.worksheets.map(s=>s.name)).toEqual(['Resumo','Chapas inteiras','Retalhos','Critérios']);
   expect(workbook.getWorksheet('Chapas inteiras').getCell('G9').result).toBeCloseTo(70.65);expect(workbook.getWorksheet('Chapas inteiras').getCell('H9').result).toBeCloseTo(141.3);
   expect(workbook.getWorksheet('Retalhos').getCell('G9').result).toBe(8);expect(workbook.getWorksheet('Retalhos').getCell('H9').result).toBe(24);expect(workbook.getWorksheet('Retalhos').getCell('K9').value).toBe('Furo no canto');
@@ -169,7 +170,7 @@ test('new material and thicknesses flow through stock, replenishment, remnants a
   await row.getByRole('button',{name:'Editar Chapa piso 3mm',exact:true}).click();await form.locator('[name=reorderPoint]').fill('3');await save(page);await expect(row.locator('.stock-state')).toHaveText('Disponível');await expect(row.locator('.reorder-label')).toContainText('3 un.');
   await page.goto(base+'#retalhos');await page.getByRole('button',{name:'Cadastrar retalho'}).first().click();await form.locator('[name=material]').selectOption({label:'Chapa piso'});await form.locator('[name=thickness]').selectOption('4.76');await form.locator('[name=width]').fill('500');await form.locator('[name=length]').fill('1000');await form.locator('[name=location]').fill('R-Piso');await save(page);await expect(page.locator('.remnant-card .material-tag')).toHaveText('Chapa piso');
   await page.goto(base+'#pesos');await expect(page.locator(`[data-weight-material="${material}"] h2`)).toHaveText('Chapa piso');
-  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();const download=await pending;const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readFile(await download.path()));
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();const download=await pending;const fileBuffer=await readFile(await download.path());await assertWorkbookSequences(fileBuffer);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(fileBuffer);
   const sheet=workbook.getWorksheet('Chapas inteiras');let floorRow;sheet.eachRow(r=>{if(r.getCell(1).value===id)floorRow=r;});expect(floorRow.getCell(2).value).toBe('Chapa piso');expect(floorRow.getCell(16).value).toBe(3);
 });
 test('removing a thickness checks available stock and can be reactivated without losing history',async({page,request})=>{

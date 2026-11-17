@@ -153,7 +153,7 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **35 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **37 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
 - **21 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
 - **10 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
@@ -220,6 +220,7 @@ Controle-Chaparia/
 ├── tests/
 │   ├── catalog.test.js
 │   ├── domain.test.js
+│   ├── ooxml-structure.js
 │   ├── weights-excel.test.js
 │   ├── weights.test.js
 │   ├── rules.test.js

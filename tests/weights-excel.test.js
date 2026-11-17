@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
+import { assertWorkbookSequences, assertWorksheetSequences } from './ooxml-structure.js';
 import { createWeightsWorkbook, weightsExcelBuffer } from '../js/weights-excel.js';
 import { initialState } from '../js/domain.js';
 import { stockWeightDetails, stockWeightSummary } from '../js/weights.js';
@@ -58,4 +59,14 @@ test('report identifies the emission time, operator and offline snapshot without
  assert.match(workbook.getWorksheet('Resumo').getCell('A3').value,/17\/11\/2026,? 09:15/);
  assert.match(workbook.getWorksheet('Resumo').getCell('A3').value,/pcp@example.com/);
  assert.match(workbook.getWorksheet('Resumo').getCell('A4').value,/SEM CONEXÃO/);assert.deepEqual(data,original);
+});
+
+test('exported XLSX follows SpreadsheetML ordering for worksheet properties, tables and drawings',async()=>{
+ for(const data of [{},initialState(),stock()])await assertWorkbookSequences(await weightsExcelBuffer(data,meta));
+});
+test('format regression check rejects the previous invalid ordering that Excel repairs',()=>{
+ const ns='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+ assert.throws(()=>assertWorksheetSequences(`<worksheet xmlns="${ns}"><sheetPr><pageSetUpPr fitToPage="1"/><outlinePr summaryBelow="1"/></sheetPr><sheetData/></worksheet>`),/outlinePr.*fora da ordem/);
+ assert.throws(()=>assertWorksheetSequences(`<worksheet xmlns="${ns}"><sheetData/><tableParts/><legacyDrawing/></worksheet>`),/legacyDrawing.*fora da ordem/);
+ assertWorksheetSequences(`<worksheet xmlns="${ns}"><sheetPr><outlinePr summaryBelow="1"/><pageSetUpPr fitToPage="1"/></sheetPr><sheetData/><legacyDrawing/><tableParts/></worksheet>`);
 });

@@ -52,3 +52,14 @@ A nova cobertura verifica a separação entre peso unitário e peso do saldo, os
 Em 17/11/2026, a suíte local de lógica passou com **35 testes**. Os novos fluxos de interface verificam ordenação numérica e combinada, criação de Chapa piso com duas espessuras, alterações de reposição, cadastro de retalho em novo material, integração com pesos/Excel, remoção sem saldo e reativação com histórico preservado. O workflow executa a suíte completa de 21 testes de interface e 10 testes no emulador, incluindo as regras dos novos campos.
 
 A publicação do frontend não publica as regras do Firebase. Não há conta administrativa Firebase autenticada neste ambiente; a ativação dos novos campos requer publicar `database.rules.json` no console, como descrito em `ATUALIZAR-CATALOGO.md`.
+
+
+## Correção do reparo de conteúdo no Microsoft Excel
+
+Em 17/11/2026, o Excel informou erro XML nas quatro partes `xl/worksheets/sheet1.xml` a `sheet4.xml`. A investigação identificou duas sequências de elementos inválidas emitidas pelo ExcelJS 4.4: `outlinePr` após `pageSetUpPr`, e `legacyDrawing` de comentários após `tableParts`.
+
+A exportação deixa de configurar agrupamento de linhas, que não era usado pelo relatório, e de gerar comentários de célula legados. Os pontos de reposição continuam na coluna própria, e os saldos críticos mantêm o destaque amarelo. Valores, fórmulas, filtros, estilos, cabeçalhos fixos e impressão foram preservados.
+
+A validação independente com os esquemas SpreadsheetML do Apache POI OOXML Full 5.4.1 / XMLBeans 5.3.0 reproduziu as falhas na versão anterior e aprovou abas, tabelas, estilos, textos compartilhados e workbook na versão corrigida. Para validar o esquema base, foram desconsiderados apenas atributos de extensão declarados ignoráveis, conforme Markup Compatibility; o arquivo exportado não foi regravado ou corrigido por outra biblioteca.
+
+Os testes permanentes agora inspecionam o XML dentro do ZIP, verificam as sequências definidas pelo formato e rejeitam as duas estruturas inválidas anteriores. O arquivo realmente baixado pelo Chromium também passa nessa verificação, incluindo o caso de materiais personalizados. A suíte local de lógica/exportação passou com **37 testes**, e os dois fluxos de exportação no navegador passaram. A abertura no aplicativo Microsoft Excel não pôde ser executada neste ambiente.

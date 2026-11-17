@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { needsRestock, reorderPoint } from './catalog.js';
+import { needsRestock } from './catalog.js';
 import { stockWeightDetails, stockWeightSummary } from './weights.js';
 
 const C = { navy: 'FF142F3E', ink: 'FF243D49', muted: 'FF667E89', gold: 'FFF4B84F', green: 'FF386955', pale: 'FFF0F5F3', white: 'FFFFFFFF', border: 'FFDCE5E8', amber: 'FFFFF0CF' };
@@ -23,7 +23,9 @@ function mergeText(sheet, row, first, last, value, options = {}) {
 }
 function frame(sheet, title, subtitle, columns, meta, headerRow) {
   sheet.properties.defaultRowHeight = 23;
-  sheet.properties.outlineProperties = { summaryBelow: true };
+  // No grouped rows are used. ExcelJS 4.4 emits outlinePr after pageSetUpPr,
+  // which violates the SpreadsheetML CT_SheetPr sequence and triggers Excel repair.
+  // Leave the optional outline settings unset while preserving print setup.
   sheet.views = [{ state: 'frozen', xSplit: columns > 7 ? 3 : 2, ySplit: headerRow, showGridLines: false, zoomScale: columns > 7 ? 85 : 100 }];
   sheet.pageSetup = { orientation: 'landscape', paperSize: columns > 7 ? 8 : 9, fitToPage: true, fitToWidth: columns > 7 ? 2 : 1, fitToHeight: 0, printTitlesRow: `${headerRow}:${headerRow}`, ...(columns > 7 ? { printTitlesColumn: 'A:C' } : {}), margins: { left: 0.25, right: 0.25, top: 0.4, bottom: 0.4, header: 0.15, footer: 0.15 } };
   sheet.headerFooter.oddFooter = '&LChaparia · Peso estimado&C&P / &N&RRelatório de estoque';
@@ -89,7 +91,9 @@ function detailSheet(workbook, name, records, meta, kind) {
     if (!record.quantity) row.getCell(12).font = { name: 'Calibri', size: 10, italic: true, color: { argb: C.muted } };
     if (kind === 'sheets' && needsRestock(record)) {
       row.getCell(6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.amber } };
-      row.getCell(6).note = `Nível crítico: saldo menor ou igual ao ponto de reposição de ${reorderPoint(record)} chapas.`;
+      // The replenishment point is already exported as a regular column. Avoid
+      // ExcelJS legacy comments: their legacyDrawing is emitted after tableParts
+      // instead of before it, which makes Excel repair the worksheet.
     }
   }
   const footer = rows.length ? end + 1 : 12;
@@ -154,6 +158,7 @@ export function createWeightsWorkbook(data, options = {}) {
     ['Abrangência', 'Inclui todo o catálogo de chapas e todos os retalhos cadastrados, inclusive consumidos. Atividades e histórico de movimentações não fazem parte deste relatório de pesos.'],
     ['Cadastros e peças', 'Uma linha representa um cadastro de peças iguais. Não são criados identificadores fictícios para cada unidade do lote.'],
     ['Precisão e fórmulas', 'Valores exibidos com duas casas decimais, calculados sem arredondamento intermediário. As fórmulas têm resultados salvos e são recalculadas pelo Excel.'],
+    ['Reposição', 'Nas chapas inteiras, saldos em amarelo atingiram o ponto de reposição da linha. O limite continua disponível na coluna Ponto de reposição (un.).'],
     ['Filtros e totais', 'Nas abas detalhadas, TOTAL VISÍVEL usa SUBTOTAL para acompanhar os filtros. O resumo por espessura usa SUMIFS para todos os registros da categoria.'],
     ['Impressão', 'Resumo em A4 paisagem; detalhes em A3 paisagem, com cabeçalho e identificação repetidos, margens ajustadas e até duas páginas de largura para manter a leitura.'],
     ['Atualização', 'Arquivo independente: retrato do estoque na exportação. Para receber alterações posteriores, exporte novamente pelo sistema.'],
