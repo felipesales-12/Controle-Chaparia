@@ -154,10 +154,10 @@ npm run test:rules
 ```
 
 - **37 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **21 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
-- **12 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
+- **24 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **13 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
-Os testes de interface usam um serviço simulado em memória e um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
+Os testes de interface usam um serviço simulado em memória; dois testes adicionais usam o SDK real para verificar o transporte HTTP alternativo, a política de conteúdo e o cancelamento da espera. Eles utilizam um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
 
 A suíte `.github/workflows/verify.yml` executa lógica, emulador e interface no GitHub Actions. O relatório de verificações desta entrega está em [docs/VALIDACAO.md](docs/VALIDACAO.md).
 
@@ -173,7 +173,9 @@ A suíte `.github/workflows/verify.yml` executa lógica, emulador e interface no
 - **Exportar estoque e histórico:** em Movimentações, baixa um JSON contendo todo o nó `/chaparia`. Para uma recuperação administrativa completa, valide a exportação e restaure seu campo `data` no nó `/chaparia` pelo console Firebase. Evite restaurar a raiz inteira e não faça isso com operadores trabalhando.
 - Para migrar atividades do aplicativo anterior, exporte o JSON antigo e importe em Backup de Atividades. A restauração substitui a lista atual, com confirmação. Nenhum banco local antigo é apagado ou migrado silenciosamente.
 
-A abertura assina separadamente chapas, materiais, atividades e versão do esquema. O dashboard acompanha apenas as últimas 100 movimentações, consultadas com o índice timestamp. O histórico completo é carregado ao abrir Movimentações; a exportação dessa seção aguarda sua carga completa. As gravações ainda leem temporariamente o nó compartilhado completo e executam a transação de estoque + histórico de forma atômica. Portanto, o custo de uma gravação ainda cresce com o histórico; para alto volume de movimentações, planeje transações por entidade com backend para auditoria. Não há limite de retenção ou limpeza automática.
+A abertura assina separadamente chapas, retalhos, materiais, atividades e versão do esquema. O dashboard acompanha apenas as últimas 100 movimentações, consultadas com o índice timestamp. O histórico completo é carregado ao abrir Movimentações; a exportação dessa seção aguarda sua carga completa. As gravações ainda leem temporariamente o nó compartilhado completo e executam a transação de estoque + histórico de forma atômica. Portanto, o custo de uma gravação ainda cresce com o histórico; para alto volume de movimentações, planeje transações por entidade com backend para auditoria. Não há limite de retenção ou limpeza automática.
+
+Se o estoque não responder em 15 segundos, a tela de acesso informa o problema e oferece **Tentar novamente**, preservando a sessão. As assinaturas continuam aguardando uma resposta e a entrada ocorre automaticamente se a conexão voltar. A política de conteúdo permite os scripts e frames do transporte HTTP alternativo do Firebase, usado quando o WebSocket não está disponível. As regras do banco continuam exigindo autenticação.
 
 A busca de retalhos considera o envelope retangular e rotação opcional; furos, formatos em L, direção de laminação, folga e espessura de corte precisam ser avaliados pelo operador.
 

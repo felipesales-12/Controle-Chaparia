@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut as firebaseSignOut, sendPasswordResetEmail, updatePassword as firebaseUpdatePassword, browserSessionPersistence } from 'firebase/auth';
-import { getDatabase, ref, onValue, serverTimestamp } from 'firebase/database';
+import { getDatabase, ref, onValue, serverTimestamp, goOffline, goOnline } from 'firebase/database';
 import { firebaseConfig } from '../firebase-config.js';
 import { transactionReducer } from './domain.js';
 import { uniqueId } from './tasks.js';
@@ -27,6 +27,33 @@ export const friendlyError = error => ({
   'permission-denied': 'O Firebase negou o acesso. Confira a sessão e as regras do Realtime Database.'
 }[error.code] || error.message || 'Não foi possível concluir a operação.');
 function detach() { dataWatcher?.stop(); stopConnection?.(); dataWatcher = stopConnection = null; snapshot = null; connected = loaded = historyLoaded = false; historyError = ''; }
+function startSync() {
+  const epoch = ++generation;
+  detach(); errorMessage = '';
+  if (!user) { status = 'login-required'; emit(); return; }
+  status = 'loading'; emit();
+  stopConnection = onValue(ref(db, '.info/connected'), value => {
+    if (epoch !== generation) return;
+    connected = value.val() === true;
+    if (loaded) status = connected ? 'synced' : 'offline';
+    emit();
+  });
+  dataWatcher = watchSharedData(db, {
+    onChange(value) {
+      if (epoch !== generation) return;
+      snapshot = value.data; loaded = value.loaded; historyLoaded = value.historyLoaded; historyError = value.historyError;
+      status = connected ? 'synced' : 'offline'; errorMessage = ''; emit();
+    },
+    onError(error) { if (epoch === generation) { loaded = false; status = 'error'; errorMessage = friendlyError(error); emit(); } }
+  });
+}
+export function retryCloud() {
+  if (!user || saving) return;
+  ++generation; detach();
+  goOffline(db);
+  goOnline(db);
+  startSync();
+}
 export function initializeCloud() {
   if (initialized) return initialized;
   initialized = (async () => {
@@ -38,21 +65,7 @@ export function initializeCloud() {
       const app = initializeApp(firebaseConfig); auth = initializeAuth(app, { persistence: browserSessionPersistence }); db = getDatabase(app); root = ref(db, 'chaparia');
       // Only the auth session persists in this tab. Stock and activities never use localStorage/IndexedDB.
       configured = true;
-      onAuthStateChanged(auth, async nextUser => {
-        const epoch = ++generation;
-        detach(); user = nextUser; errorMessage = '';
-        if (!user) { status = 'login-required'; emit(); return; }
-        status = 'loading'; emit();
-        stopConnection = onValue(ref(db, '.info/connected'), value => { connected = value.val() === true; if (loaded) status = connected ? 'synced' : 'offline'; emit(); });
-        dataWatcher = watchSharedData(db, {
-          onChange(value) {
-            if (epoch !== generation) return;
-            snapshot = value.data; loaded = value.loaded; historyLoaded = value.historyLoaded; historyError = value.historyError;
-            status = connected ? 'synced' : 'offline'; errorMessage = ''; emit();
-          },
-          onError(error) { if (epoch === generation) { loaded = false; status = 'error'; errorMessage = friendlyError(error); emit(); } }
-        });
-      }, error => { status = 'error'; errorMessage = friendlyError(error); emit(); });
+      onAuthStateChanged(auth, nextUser => { user = nextUser; startSync(); }, error => { status = 'error'; errorMessage = friendlyError(error); emit(); });
     } catch (error) { status = 'error'; errorMessage = friendlyError(error); emit(); }
   })();
   return initialized;

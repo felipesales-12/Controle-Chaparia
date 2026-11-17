@@ -3,7 +3,7 @@ import { priorities, statuses, createTask, selectTasks, getMetrics, dateLabel, d
 import { backupJSON, tasksCSV, validateBackup, download } from './backup.js';
 import { icon } from './icons.js';
 import { inventoryDashboard, sheetsPage, remnantsPage, movementsPage, initializeInventory } from './inventory.js';
-import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, ensureMovementHistory, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
+import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, ensureMovementHistory, retryCloud, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
 import { accountPage } from './account.js';
 import { weightsPage, initializeWeights } from './weights-page.js';
 
@@ -223,6 +223,7 @@ function navigate(target, nextFilters = {}) {
 }
 
 async function actionHandler(action, element) {
+  if (action === 'cloud-retry') return retryCloud();
   if (action === 'retry') return initialize();
   if (action === 'menu' || action === 'menu-close') {
     const open = action === 'menu' && !document.body.classList.contains('menu-open');
@@ -373,6 +374,7 @@ function adoptCloud() {
   message.textContent = state.error || (state.authenticated ? 'Carregando o estoque compartilhado…' : state.status === 'loading' ? 'Conectando ao Firebase…' : 'Use o acesso fornecido pelo administrador.');
   message.classList.toggle('inline-error', !!state.error);
   $('#login-submit').disabled = !state.configured || state.authenticated;
+  $('#login-retry').hidden = !state.authenticated || state.loaded || !state.error;
   if (!authorized) {
     ready = false; tasks = []; lastCloudData = null;
     document.querySelectorAll('dialog[open]').forEach(d => d.close());

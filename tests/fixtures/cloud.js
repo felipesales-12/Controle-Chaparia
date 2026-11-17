@@ -1,15 +1,16 @@
 // Browser QA only. Replaces cloud.js in work/e2e/js/app.js, never in dist/.
 let data=null,user=null,connected=true,saving=false,initialized=false;
+let waiting=false,syncError='';
 const listeners=new Set();
 const emit=()=>listeners.forEach(fn=>fn(cloudState()));
 export const subscribeCloud=fn=>{listeners.add(fn);return()=>listeners.delete(fn);};
-export const cloudState=()=>({data,authenticated:!!user,email:user?.email||'',configured:true,loaded:!!data&&!!user,connected,status:user?(connected?'synced':'offline'):'login-required',mode:'cloud',saving,error:''});
+export const cloudState=()=>({data,authenticated:!!user,email:user?.email||'',configured:true,loaded:!!data&&!!user&&!waiting,connected,status:syncError?'error':waiting?'loading':user?(connected?'synced':'offline'):'login-required',mode:'cloud',saving,error:syncError});
 export async function initializeCloud(){
   if(initialized)return;initialized=true;
   const stored=sessionStorage.getItem('qa-email');if(stored)user={uid:stored,email:stored};
   const response=await fetch('/__test/data');data=await response.json();
   new EventSource('/__test/events').onmessage=event=>{data=JSON.parse(event.data);emit();};
-  window.__qa={expire:()=>{user=null;sessionStorage.removeItem('qa-email');emit();},disconnect:()=>{connected=false;emit();},reconnect:()=>{connected=true;emit();}};
+  window.__qa={expire:()=>{user=null;sessionStorage.removeItem('qa-email');emit();},disconnect:()=>{connected=false;emit();},reconnect:()=>{connected=true;emit();},stall:()=>{waiting=true;emit();},timeout:()=>{syncError='A conexão com o estoque demorou mais que o esperado. Verifique a internet e clique em Tentar novamente.';emit();}};
   emit();
 }
 export async function signIn(email,password){if(password!=='valid-password')throw Error('E-mail ou senha inválidos.');user={uid:email,email};sessionStorage.setItem('qa-email',email);emit();}
@@ -30,3 +31,4 @@ export const cloudDatabase={
 };
 
 export function ensureMovementHistory() {}
+export function retryCloud() { waiting=false;syncError='';emit(); }

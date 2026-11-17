@@ -1,7 +1,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { ref as modularRef } from 'firebase/database';
+import { ref as modularRef, goOffline, goOnline } from 'firebase/database';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { initialState, transactionReducer } from '../js/domain.js';
 let env;
@@ -66,20 +66,40 @@ test('archive metadata preserves a legacy sheet while rejecting invalid state ty
 test('stock becomes ready with bounded recent history; complete audit loads only on request',{timeout:15000},async()=>{
   const { watchSharedData, commitSharedTransaction }=await import('../js/shared-data.js');
   const db=env.authenticatedContext('pcp').database();const state=initialState();
+  state.remnants={offcut:{id:'offcut',material:'carbono',thickness:2,width:500,length:1000,quantity:2,location:'R1',notes:'',revision:1}};
   state.movements=Object.fromEntries(Array.from({length:160},(_,i)=>{const id=`event-${String(i).padStart(3,'0')}`;return[id,{id,type:'sheet-in',description:'Entrada',actor:{uid:'pcp'},timestamp:1700000000000+i}];}));
   await db.ref('chaparia').set(state);
   const seen=[];let failure;const watcher=watchSharedData(db,{onChange:value=>seen.push(value),onError:error=>{failure=error;}});
   const until=async condition=>{const start=Date.now();while(!condition()){if(failure)throw failure;if(Date.now()-start>10000)throw Error('Sync timed out');await new Promise(resolve=>setTimeout(resolve,20));}};
   try{
     await until(()=>seen.some(v=>v.loaded));assert.equal(seen[0].historyLoaded,false);
+    assert.equal(seen[0].data.remnants.offcut.quantity,2);
     await until(()=>Object.keys(seen.at(-1).data.movements||{}).length===100);
     assert.equal(seen.at(-1).data.movements['event-000'],undefined);assert.ok(seen.at(-1).data.movements['event-159']);
     const operation=transactionReducer({type:'sheet-in',id:'carbono-2',quantity:1,eventId:'new-entry'},{uid:'pcp',email:'pcp@example.com'},1700000001000);
     const result=await commitSharedTransaction(modularRef(db,'chaparia'),operation.update);assert.ok(result.committed);
+    watcher.adoptTransaction(result.snapshot.val());await new Promise(resolve=>queueMicrotask(resolve));
+    assert.equal(seen.at(-1).data.remnants.offcut.quantity,2);
+    await db.ref('chaparia/remnants/offcut/quantity').set(1);
+    await until(()=>seen.at(-1).data.remnants.offcut.quantity===1);
     assert.equal(Object.keys(result.snapshot.val().movements).length,161);assert.equal(result.snapshot.val().sheets['carbono-2'].quantity,1);
     watcher.loadHistory();await until(()=>seen.at(-1).historyLoaded);
     assert.equal(Object.keys(seen.at(-1).data.movements).length,161);assert.ok(seen.at(-1).data.movements['event-000']);
   }finally{watcher.stop();}
+});
+
+test('an initial connection timeout can recover without losing the authenticated session',{timeout:15000},async()=>{
+  const { watchSharedData }=await import('../js/shared-data.js');
+  const db=env.authenticatedContext('reconnect').database();
+  await env.withSecurityRulesDisabled(async context=>context.database().ref('chaparia').set(initialState()));
+  goOffline(db);
+  let timedOut;const timeout=new Promise(resolve=>{timedOut=resolve;});
+  let resolveReady;const ready=new Promise(resolve=>{resolveReady=resolve;});
+  const watcher=watchSharedData(db,{timeoutMs:50,onChange:resolveReady,onError:timedOut});
+  try{
+    assert.match((await timeout).message,/demorou mais/);
+    goOnline(db);const value=await ready;assert.equal(value.loaded,true);assert.equal(Object.keys(value.data.sheets).length,14);
+  }finally{watcher.stop();goOnline(db);}
 });
 
 test('lightweight listeners initialize an empty database and stop delivering data after logout',{timeout:15000},async()=>{

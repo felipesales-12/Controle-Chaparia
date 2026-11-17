@@ -13,6 +13,17 @@ test('login gate, invalid credential and production configuration screen',async(
   await page.goto(base+'#chapas');await expect(page.getByRole('heading',{name:'Bem-vindo à Chaparia'})).toBeVisible();await expect(page.locator('.app-shell')).not.toBeVisible();
   await page.locator('[data-auth-form=login] [name=email]').fill('pcp@example.com');await page.locator('[data-auth-form=login] [name=password]').fill('wrong');await page.locator('#login-submit').click();await expect(page.locator('[data-auth-form=login] .auth-error')).toContainText('inválidos');
 });
+test('a stalled stock connection offers retry without requiring another login',async({page})=>{
+  await login(page);await entry(page,3);
+  await page.evaluate(()=>window.__qa.stall());
+  await expect(page.locator('#login-status')).toHaveText('Carregando o estoque compartilhado…');
+  await expect(page.locator('#login-retry')).toBeHidden();
+  await page.evaluate(()=>window.__qa.timeout());
+  await expect(page.locator('#login-status')).toContainText('demorou mais');
+  await page.getByRole('button',{name:'Tentar novamente',exact:true}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-auth','authenticated');
+  await expect(page.locator('tbody tr').first().locator('.stock-count')).toHaveText('3');
+});
 test('stock transactions synchronize to another authenticated browser and prevent negative balance',async({page,browser})=>{
   await login(page);const context=await browser.newContext();const other=await context.newPage();await login(other,'fabrica@example.com');await other.goto(base+'#chapas');
   await entry(page,3);await expect(other.locator('tbody tr').first().locator('.stock-count')).toHaveText('3');
