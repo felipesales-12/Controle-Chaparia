@@ -4,50 +4,133 @@
     ".write": "auth != null",
     "chaparia": {
       ".validate": "newData.hasChildren(['schemaVersion', 'sheets']) && newData.child('schemaVersion').val() == 1",
-      "schemaVersion": { ".validate": "newData.isNumber() && newData.val() == 1" },
+      "schemaVersion": {
+        ".validate": "newData.isNumber() && newData.val() == 1"
+      },
       "sheets": {
         "$id": {
-          ".validate": "newData.hasChildren(['id','material','thickness','width','length','quantity','location','revision']) && newData.child('id').val() == $id",
-          "id": { ".validate": "newData.isString() && newData.val().length <= 100" },
-          "material": { ".validate": "newData.val() == 'carbono' || newData.val() == 'inox'" },
-          "thickness": { ".validate": "(newData.parent().child('material').val() == 'carbono' && (newData.val() == 2 || newData.val() == 3 || newData.val() == 4.76 || newData.val() == 6.35 || newData.val() == 7.94 || newData.val() == 9.35 || newData.val() == 12.7 || newData.val() == 19.05)) || (newData.parent().child('material').val() == 'inox' && (newData.val() == 1.5 || newData.val() == 2 || newData.val() == 3 || newData.val() == 4 || newData.val() == 5 || newData.val() == 6))" },
-          "width": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000" },
-          "length": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000" },
-          "quantity": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000 && newData.val() % 1 == 0" },
-          "location": { ".validate": "newData.isString() && newData.val().length <= 140" },
-          "revision": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0" },
-          "$other": { ".validate": false }
+          ".validate": "newData.hasChildren(['id','material','thickness','width','length','quantity','location','revision']) && newData.child('id').val() == $id && (newData.child('active').val() != false || newData.child('quantity').val() == 0)",
+          "id": {
+            ".validate": "newData.isString() && newData.val().length <= 100"
+          },
+          "material": {
+            ".validate": "newData.isString() && (newData.val() == 'carbono' || newData.val() == 'inox' || newData.parent().parent().parent().child('materials').child(newData.val()).hasChildren(['name','density']))"
+          },
+          "thickness": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000"
+          },
+          "width": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000"
+          },
+          "length": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000"
+          },
+          "quantity": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000 && newData.val() % 1 == 0"
+          },
+          "location": {
+            ".validate": "newData.isString() && newData.val().length <= 140"
+          },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "$other": {
+            ".validate": false
+          },
+          "reorderPoint": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000 && newData.val() % 1 == 0"
+          },
+          "active": {
+            ".validate": "newData.isBoolean()"
+          },
+          "archivedAt": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          }
         }
       },
       "remnants": {
         "$id": {
           ".validate": "newData.hasChildren(['id','material','thickness','width','length','quantity','location','revision']) && newData.child('id').val() == $id",
-          "quantity": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000 && newData.val() % 1 == 0" },
-          "width": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000" },
-          "length": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000" },
-          "material": { ".validate": "newData.val() == 'carbono' || newData.val() == 'inox'" },
-          "thickness": { ".validate": "(newData.parent().child('material').val() == 'carbono' && (newData.val() == 2 || newData.val() == 3 || newData.val() == 4.76 || newData.val() == 6.35 || newData.val() == 7.94 || newData.val() == 9.35 || newData.val() == 12.7 || newData.val() == 19.05)) || (newData.parent().child('material').val() == 'inox' && (newData.val() == 1.5 || newData.val() == 2 || newData.val() == 3 || newData.val() == 4 || newData.val() == 5 || newData.val() == 6))" },
-          "location": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 140" },
-          "notes": { ".validate": "newData.isString() && newData.val().length <= 2000" },
-          "revision": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0" }
+          "quantity": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000 && newData.val() % 1 == 0"
+          },
+          "width": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000"
+          },
+          "length": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000"
+          },
+          "material": {
+            ".validate": "newData.isString() && (newData.val() == 'carbono' || newData.val() == 'inox' || newData.parent().parent().parent().child('materials').child(newData.val()).hasChildren(['name','density']))"
+          },
+          "thickness": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000"
+          },
+          "location": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 140"
+          },
+          "notes": {
+            ".validate": "newData.isString() && newData.val().length <= 2000"
+          },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          }
         }
       },
       "tasks": {
         "$id": {
           ".validate": "newData.hasChildren(['id','title','requester','location','status','priority','createdAt','updatedAt','_cloudRevision']) && newData.child('id').val() == $id",
-          "title": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160" },
-          "requester": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 140" },
-          "location": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 140" },
-          "status": { ".validate": "newData.val() == 'pending' || newData.val() == 'progress' || newData.val() == 'completed'" },
-          "priority": { ".validate": "newData.val() == 'low' || newData.val() == 'medium' || newData.val() == 'high' || newData.val() == 'critical'" },
-          "_cloudRevision": { ".validate": "newData.isNumber() && newData.val() >= 1" }
+          "title": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160"
+          },
+          "requester": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 140"
+          },
+          "location": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 140"
+          },
+          "status": {
+            ".validate": "newData.val() == 'pending' || newData.val() == 'progress' || newData.val() == 'completed'"
+          },
+          "priority": {
+            ".validate": "newData.val() == 'low' || newData.val() == 'medium' || newData.val() == 'high' || newData.val() == 'critical'"
+          },
+          "_cloudRevision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1"
+          }
         }
       },
       "movements": {
-        ".indexOn": ["timestamp"],
-        "$id": { ".validate": "newData.hasChildren(['id','type','description','actor','timestamp']) && newData.child('id').val() == $id && newData.child('actor/uid').isString() && newData.child('timestamp').isNumber()" }
+        ".indexOn": [
+          "timestamp"
+        ],
+        "$id": {
+          ".validate": "newData.hasChildren(['id','type','description','actor','timestamp']) && newData.child('id').val() == $id && newData.child('actor/uid').isString() && newData.child('timestamp').isNumber()"
+        }
       },
-      "$other": { ".validate": false }
+      "$other": {
+        ".validate": false
+      },
+      "materials": {
+        "$id": {
+          ".validate": "newData.hasChildren(['id','name','density','revision']) && newData.child('id').val() == $id",
+          "id": {
+            ".validate": "newData.isString() && newData.val().length <= 100"
+          },
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+          },
+          "density": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 30000"
+          },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
     }
   }
 }

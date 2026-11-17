@@ -27,7 +27,7 @@ test('Excel report separates stock types and preserves the full inventory fields
  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(buffer);
  assert.deepEqual(workbook.worksheets.map(s=>s.name),['Resumo','Chapas inteiras','Retalhos','Critérios']);
  const sheets=workbook.getWorksheet('Chapas inteiras'),remnants=workbook.getWorksheet('Retalhos');
- assert.equal(sheets.getTable('TabelaChapas').table.tableRef,'A8:O22');
+ assert.equal(sheets.getTable('TabelaChapas').table.tableRef,'A8:Q22');
  assert.equal(remnants.getTable('TabelaRetalhos').table.tableRef,'A8:O10');
  assert.equal(sheets.getCell('A9').value,'carbono-2');assert.equal(sheets.getCell('F9').value,2);assert.equal(sheets.getCell('J9').value,'A-01');
  close(sheets.getCell('G9').result,70.65);close(sheets.getCell('H9').result,141.3);

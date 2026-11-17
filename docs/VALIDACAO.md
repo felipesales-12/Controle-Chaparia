@@ -45,3 +45,10 @@ Os novos casos conferem conversão de mm³ para kg, densidades diferentes por a�
 Verificação adicional em 17/11/2026: **27 testes de lógica/exportação e 18 testes de interface aprovados localmente**, com build de produção concluído.
 
 A nova cobertura verifica a separação entre peso unitário e peso do saldo, os metadados completos dos cadastros, retalhos consumidos, fórmulas e resultados numéricos no XLSX, filtros, estilos, cabeçalhos fixos, impressão, estoque vazio, exportação sem conexão, download real no Chromium, cancelamento da exportação ao sair da conta e carregamento da biblioteca somente ao exportar. A leitura independente com openpyxl também confirmou a integridade do arquivo, as fórmulas e seus valores salvos. Não foi feita validação visual no aplicativo Microsoft Excel neste ambiente.
+
+
+## Catálogo dinâmico, reposição por chapa e ordenação
+
+Em 17/11/2026, a suíte local de lógica passou com **35 testes**. Os novos fluxos de interface verificam ordenação numérica e combinada, criação de Chapa piso com duas espessuras, alterações de reposição, cadastro de retalho em novo material, integração com pesos/Excel, remoção sem saldo e reativação com histórico preservado. O workflow executa a suíte completa de 21 testes de interface e 10 testes no emulador, incluindo as regras dos novos campos.
+
+A publicação do frontend não publica as regras do Firebase. Não há conta administrativa Firebase autenticada neste ambiente; a ativação dos novos campos requer publicar `database.rules.json` no console, como descrito em `ATUALIZAR-CATALOGO.md`.

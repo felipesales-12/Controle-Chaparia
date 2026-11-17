@@ -262,3 +262,12 @@ table td { font-size:11px; }
 .weight-record-notes small { display:block; margin-top:5px; color:var(--muted); white-space:pre-wrap; }
 .weight-per-piece { color:var(--green); font-weight:750; background:var(--surface-soft); }
 @media(max-width:600px) { .weight-controls { align-items:flex-start; } .weight-controls .segmented { width:100%; } .weight-controls .segmented button { flex:1; } .weight-controls>span { font-size:10px; line-height:1.6; } }
+.catalog-actions { display:flex; gap:10px; flex-wrap:wrap; }
+.inventory-toolbar .segmented { flex-wrap:wrap; max-width:100%; }
+.inventory-sort { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:10px; min-width:180px; }
+.inventory-sort select { min-height:40px; font-size:11px; }
+.inventory-toolbar .inline-search { align-items:flex-end; flex-wrap:wrap; }
+.reorder-label { display:block; color:var(--muted); font-size:9px; margin-top:5px; }
+.critical-list small { font-size:10px; }
+.section-heading:has(#remnant-order) { flex-wrap:wrap; }
+@media(max-width:700px) { .catalog-actions { width:100%; } .inventory-sort { min-width:0; width:100%; } .inventory-toolbar .inline-search { width:100%; } .inventory-toolbar .inline-search .inventory-sort { width:100%; } .catalog-actions .button { font-size:11px; } }

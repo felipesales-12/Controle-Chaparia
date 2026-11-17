@@ -30,7 +30,7 @@ test('weights sum individual dimensions and quantities separately by steel and t
   near(summary.materials.find(group => group.material === 'inox').totalKg, 88);
   near(summary.sheetKg, 229); near(summary.remnantKg, 42.69); near(summary.totalKg, 271.69);
   assert.equal(summary.sheetQuantity, 4); assert.equal(summary.remnantQuantity, 7);
-  assert.equal(carbon.rows.find(row => row.thickness === 3).totalKg, 0);
+  assert.equal(carbon.rows.find(row => row.thickness === 3)?.totalKg ?? 0, 0);
 });
 
 test('empty Firebase collections and the initial catalog produce zero totals for all 14 thicknesses', () => {

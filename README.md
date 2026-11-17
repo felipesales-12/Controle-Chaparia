@@ -28,7 +28,7 @@ A persistência de atividades passa a ser obrigatoriamente na nuvem, com revisõ
 | --- | --- |
 | Login | Firebase Authentication, recuperação de senha, alteração de senha e encerramento da sessão |
 | Chapas | Entrada, baixa por corte, dimensões padrão e localização/prateleira |
-| Reposição | Banner automático para quantidade ≤ 2, relação completa de itens críticos e lista para copiar |
+| Reposição | Banner automático pelo ponto de reposição de cada chapa (padrão inicial: 2), relação completa de itens críticos e lista para copiar |
 | Retalhos | Material, espessura, medidas, quantidade, identificação/prateleira e observações |
 | Aproveitamento | Dimensões mínimas, material/espessura, rotação opcional de 90° e compatíveis em destaque |
 | Corte de retalho | Baixa total ou registro da sobra de uma peça, preservando as outras peças do lote |
@@ -42,6 +42,24 @@ Catálogo inicial com **14 itens e saldo zero**, dimensões iniciais **3000 × 1
 - Aço Inox: **1.5, 2, 3, 4, 5, 6 mm**.
 
 O sistema cria o catálogo somente se `/chaparia` estiver vazio (`null`), usando uma transação. Ele preserva um catálogo existente e os demais nós da raiz. Um banco com estrutura incompatível gera orientação de erro, sem ser substituído automaticamente.
+
+## Catálogo, reposição e ordenação
+
+**Atualização necessária no Firebase:** publique a versão atual de `database.rules.json` para permitir materiais adicionais, pontos de reposição e arquivamento. As regras anteriores podem recusar esses novos campos. Consulte [docs/ATUALIZAR-CATALOGO.md](docs/ATUALIZAR-CATALOGO.md). Não é necessário apagar ou importar novamente o estoque.
+
+Em **Chapas inteiras**:
+
+- **Novo material** cria tipos como Chapa piso, com nome e densidade para o cálculo de peso.
+- **Adicionar espessura** permite escolher o material, informar uma espessura positiva (até 1.000 mm), dimensões, localização e ponto de reposição. Exemplo: Chapa piso 3 mm e Chapa piso 4,76 mm. O saldo inicial é zero; use Entrada para adicionar chapas.
+- O botão de edição da linha permite alterar o **ponto de reposição** de cada chapa. O alerta é acionado quando o saldo fica **menor ou igual** ao valor configurado. O valor padrão para registros antigos continua 2; zero também é permitido.
+- **Remover espessura** retira a combinação do catálogo ativo depois de confirmar que chapas e retalhos daquela combinação estão sem saldo. O registro e o histórico ficam preservados. Para reativar, use Adicionar espessura com o mesmo material e medida.
+- **Ordenar chapas** oferece material/espessura, espessura crescente e espessura decrescente.
+
+Em **Retalhos**, a ordenação inclui área, espessura, comprimento e combinações **Espessura + comprimento** ou **Comprimento + espessura**, em ordem crescente ou decrescente. O primeiro critério tem prioridade; o segundo desempata. Na busca de aproveitamento, compatíveis permanecem em destaque e no início, com a ordenação escolhida dentro de cada grupo.
+
+A visualização **Pesos → Peso por peça** oferece as mesmas ordenações de chapas e retalhos. Materiais e espessuras adicionais aparecem também nos filtros de retalhos, no dashboard, nos alertas de compra, nos pesos e no Excel. O relatório mantém as espessuras arquivadas no detalhamento com sua situação, saldo zero, ponto de reposição e data de arquivamento.
+
+Os novos cadastros, alterações de reposição e remoções usam as mesmas transações e o mesmo histórico das movimentações, identificando o usuário e o horário do servidor. As alterações são compartilhadas em tempo real.
 
 ## Aba Pesos
 
@@ -135,9 +153,9 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **27 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **18 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
-- **6 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
+- **35 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **21 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **10 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória e um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
 
@@ -146,7 +164,7 @@ A suíte `.github/workflows/verify.yml` executa lógica, emulador e interface no
 ## Dados, sincronização e recuperação
 
 - `onAuthStateChanged` inicia as assinaturas `onValue` após o login e as remove ao sair ou trocar de usuário.
-- O nó compartilhado é **`/chaparia`**. Ele contém `schemaVersion`, `sheets`, `remnants`, `tasks` e `movements`.
+- O nó compartilhado é **`/chaparia`**. Ele contém `schemaVersion`, `sheets`, `remnants`, `tasks`, `movements` e os materiais adicionais em `materials`.
 - Cada movimentação usa `runTransaction` no nó compartilhado, gravando saldo e histórico na mesma operação. Se outro aparelho altera o saldo durante uma baixa, o Firebase repete o cálculo sobre o saldo mais recente. Não há saldo negativo confirmado pelo aplicativo.
 - Edições de metadados, retalhos e atividades usam revisões. Se outro operador editar um registro com um formulário já aberto, a operação é rejeitada, preservando o rascunho para revisão.
 - O aplicativo só informa sucesso após a confirmação da transação pelo servidor. Sem conexão, novas operações são bloqueadas. Se a conexão cair durante uma gravação enviada, a tela continua aguardando confirmação; mantenha a aba aberta até concluir.
@@ -187,6 +205,7 @@ Controle-Chaparia/
 │   ├── backup.js
 │   ├── cloud.js
 │   ├── database.js
+│   ├── catalog.js
 │   ├── domain.js
 │   ├── icons.js
 │   ├── inventory.js
@@ -199,6 +218,7 @@ Controle-Chaparia/
 │   ├── build.mjs
 │   └── preview.mjs
 ├── tests/
+│   ├── catalog.test.js
 │   ├── domain.test.js
 │   ├── weights-excel.test.js
 │   ├── weights.test.js
@@ -207,6 +227,7 @@ Controle-Chaparia/
 │   ├── serve.mjs
 │   └── fixtures/cloud.js
 └── docs/
+    ├── ATUALIZAR-CATALOGO.md
     ├── CONFIGURACAO.md
     └── VALIDACAO.md
 ```

@@ -1,7 +1,7 @@
 import { validateBackup } from './backup.js';
 
-export const MATERIALS = Object.freeze({ carbono: { name: 'Aço Carbono', thicknesses: [2, 3, 4.76, 6.35, 7.94, 9.35, 12.7, 19.05] }, inox: { name: 'Aço Inox', thicknesses: [1.5, 2, 3, 4, 5, 6] } });
-export const materialName = key => MATERIALS[key]?.name || key;
+import { MATERIALS, getMaterials, materialName, activeSheets, needsRestock, reorderPoint } from './catalog.js';
+export { MATERIALS, materialName } from './catalog.js';
 export const sheetId = (material, thickness) => `${material}-${String(thickness).replace('.', '_')}`;
 export function initialState() {
   return { schemaVersion: 1, sheets: Object.fromEntries(Object.entries(MATERIALS).flatMap(([material, info]) => info.thicknesses.map(thickness => {
@@ -9,8 +9,8 @@ export function initialState() {
     return [id, { id, material, thickness, width: 1500, length: 3000, quantity: 0, location: '', revision: 1 }];
   }))) };
 }
-export const criticalSheets = sheets => Object.values(sheets || {}).filter(item => item.quantity <= 2);
-export const purchaseText = sheets => ['SOLICITAÇÃO DE COMPRA • CHAPARIA', ...criticalSheets(sheets).map(s => `Solicitar mais chapas: ${materialName(s.material)} ${s.thickness}mm — Restam ${s.quantity} chapas (${s.length}x${s.width}mm)${s.location ? ` — ${s.location}` : ''}`)].join('\n');
+export const criticalSheets = sheets => Object.values(sheets || {}).filter(needsRestock);
+export const purchaseText = (sheets, data = {}) => ['SOLICITAÇÃO DE COMPRA • CHAPARIA', ...criticalSheets(sheets).map(s => `Solicitar mais chapas: ${materialName(s.material, data)} ${s.thickness}mm — Restam ${s.quantity} chapas (ponto de reposição: ${reorderPoint(s)}; ${s.length}x${s.width}mm)${s.location ? ` — ${s.location}` : ''}`)].join('\n');
 export function number(value, label, integer = false, allowZero = false) {
   const n = Number(value);
   if (String(value).trim() === '' || !Number.isFinite(n) || n < (allowZero ? 0 : Number.MIN_VALUE) || n > 1000000 || (integer && !Number.isSafeInteger(n))) throw new Error(`${label}: informe ${integer ? 'um número inteiro' : 'um número'} ${allowZero ? 'maior ou igual a zero' : 'maior que zero'}, até 1.000.000.`);
@@ -21,14 +21,15 @@ function validKey(id) {
   if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(id) || ['__proto__', 'constructor', 'prototype'].includes(id)) throw new Error('Identificador inválido.');
   return id;
 }
-function material(values) {
-  if (!Object.hasOwn(MATERIALS, values.material) || !MATERIALS[values.material].thicknesses.includes(Number(values.thickness))) throw new Error('Selecione um material e uma espessura da lista padrão.');
+function material(values, data = {}) {
+  const materials = getMaterials(data);
+  if (!Object.hasOwn(materials, values.material) || !materials[values.material].thicknesses.includes(Number(values.thickness))) throw new Error('Selecione um material e uma espessura do catálogo ativo.');
   return { material: values.material, thickness: Number(values.thickness) };
 }
-export function remnantValues(values) {
+export function remnantValues(values, data = {}) {
   const location = text(values.location, 140);
   if (!location) throw new Error('Informe a identificação/prateleira do retalho.');
-  return { ...material(values), width: number(values.width, 'Largura'), length: number(values.length, 'Comprimento'), quantity: number(values.quantity, 'Quantidade', true), location, notes: text(values.notes, 2000) };
+  return { ...material(values, data), width: number(values.width, 'Largura'), length: number(values.length, 'Comprimento'), quantity: number(values.quantity, 'Quantidade', true), location, notes: text(values.notes, 2000) };
 }
 export function fits(remnant, width, length, rotate = true) {
   if (remnant.quantity <= 0 || width <= 0 || length <= 0) return false;
@@ -52,9 +53,47 @@ export function applyOperation(previous, command, actor, timestamp) {
   state.sheets ||= {}; state.remnants ||= {}; state.tasks ||= {}; state.movements ||= {};
   let description = '', before = null, after = null, entityId = command.id || '';
   switch (command.type) {
+    case 'material-add': {
+      validKey(command.id);
+      const name = text(command.name, 80);
+      if (!name) throw new Error('Informe o nome do material.');
+      const normalized = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (getMaterials(state)[command.id] || Object.values(getMaterials(state)).some(m => normalized(m.name) === normalized(name))) throw new Error('Já existe um material com esse nome.');
+      const density = number(command.density, 'Densidade');
+      if (density > 30000) throw new Error('A densidade deve ser menor ou igual a 30.000 kg/m³.');
+      state.materials ||= {};
+      after = { id: command.id, name, density, revision: 1 };
+      state.materials[command.id] = after;
+      description = `Cadastro de material · ${name}`;
+      break;
+    }
+    case 'sheet-add': {
+      const materials = getMaterials(state);
+      if (!Object.hasOwn(materials, command.material)) throw new Error('Selecione um material cadastrado.');
+      const thickness = number(command.thickness, 'Espessura');
+      if (thickness > 1000) throw new Error('A espessura deve ser menor ou igual a 1.000 mm.');
+      const id = sheetId(command.material, thickness); validKey(id); entityId = id;
+      const old = state.sheets[id];
+      if (old && old.active !== false) throw new Error('Esta espessura já está cadastrada para o material.');
+      if (old && old.quantity > 0) throw new Error('Revise o saldo da espessura removida antes de reativar.');
+      before = old || null;
+      after = { id, material: command.material, thickness, width: number(command.width, 'Largura'), length: number(command.length, 'Comprimento'), quantity: 0, location: text(command.location, 140), reorderPoint: number(command.reorderPoint ?? 2, 'Ponto de reposição', true, true), active: true, revision: (old?.revision || 0) + 1 };
+      state.sheets[id] = after;
+      description = `${old ? 'Reativação' : 'Cadastro'} de espessura · ${materialName(command.material, state)} ${thickness}mm`;
+      break;
+    }
+    case 'sheet-remove': {
+      const item = currentItem(state.sheets, command.id, command.revision);
+      if (item.active === false) throw new Error('Esta espessura já foi removida.');
+      if (item.quantity > 0 || Object.values(state.remnants).some(r => r.material === item.material && Number(r.thickness) === Number(item.thickness) && r.quantity > 0)) throw new Error('Dê baixa nas chapas e retalhos disponíveis desta espessura antes de removê-la.');
+      before = { ...item }; item.active = false; item.revision++; item.archivedAt = timestamp; after = { ...item };
+      description = `Remoção de espessura do catálogo ativo · ${materialName(item.material, state)} ${item.thickness}mm`;
+      break;
+    }
     case 'sheet-in':
     case 'sheet-out': {
       const item = currentItem(state.sheets, command.id);
+      if (item.active === false) throw new Error('Esta espessura foi removida do catálogo. Adicione-a novamente antes de movimentar.');
       const quantity = number(command.quantity, 'Quantidade', true);
       before = { ...item };
       const next = item.quantity + (command.type === 'sheet-in' ? quantity : -quantity);
@@ -62,30 +101,32 @@ export function applyOperation(previous, command, actor, timestamp) {
       number(next, 'Saldo', true, true);
       item.quantity = next; item.revision++;
       after = { ...item };
-      description = `${command.type === 'sheet-in' ? 'Entrada' : 'Baixa por corte'} de ${quantity} chapa(s) · ${materialName(item.material)} ${item.thickness}mm`;
+      description = `${command.type === 'sheet-in' ? 'Entrada' : 'Baixa por corte'} de ${quantity} chapa(s) · ${materialName(item.material, state)} ${item.thickness}mm`;
       break;
     }
     case 'sheet-edit': {
       const item = currentItem(state.sheets, command.id, command.revision);
       before = { ...item };
       item.width = number(command.width, 'Largura'); item.length = number(command.length, 'Comprimento');
-      item.location = text(command.location, 140); item.revision++;
-      after = { ...item }; description = `Dimensões/localização atualizadas · ${materialName(item.material)} ${item.thickness}mm`;
+      item.location = text(command.location, 140);
+      if (command.reorderPoint !== undefined) item.reorderPoint = number(command.reorderPoint, 'Ponto de reposição', true, true);
+      item.revision++;
+      after = { ...item }; description = `Dimensões/localização/reposição atualizadas · ${materialName(item.material, state)} ${item.thickness}mm`;
       break;
     }
     case 'remnant-add': {
       validKey(command.id);
       if (state.remnants[command.id]) throw new Error('Este retalho já foi cadastrado.');
-      after = { id: command.id, ...remnantValues(command), revision: 1, createdAt: timestamp };
+      after = { id: command.id, ...remnantValues(command, state), revision: 1, createdAt: timestamp };
       state.remnants[command.id] = after;
-      description = `Cadastro de ${after.quantity} retalho(s) · ${materialName(after.material)} ${after.thickness}mm · ${after.width}x${after.length}mm`;
+      description = `Cadastro de ${after.quantity} retalho(s) · ${materialName(after.material, state)} ${after.thickness}mm · ${after.width}x${after.length}mm`;
       break;
     }
     case 'remnant-consume': {
       const item = currentItem(state.remnants, command.id, command.revision);
       if (!item.quantity) throw new Error('Este retalho já foi consumido.');
       before = { ...item }; item.quantity = 0; item.revision++; after = { ...item };
-      description = `Baixa total de ${before.quantity} retalho(s) · ${materialName(item.material)} ${item.thickness}mm`;
+      description = `Baixa total de ${before.quantity} retalho(s) · ${materialName(item.material, state)} ${item.thickness}mm`;
       break;
     }
     case 'remnant-resize': {
@@ -102,7 +143,7 @@ export function applyOperation(previous, command, actor, timestamp) {
         after = { ...item, id: command.childId, width, length, quantity: 1, location, notes, revision: 1, parentId: item.id, createdAt: timestamp };
         state.remnants[command.childId] = after; entityId = command.childId;
       } else { Object.assign(item, { width, length, location, notes }); after = { ...item }; }
-      description = `Corte de 1 retalho · sobra ${width}x${length}mm · ${materialName(item.material)} ${item.thickness}mm`;
+      description = `Corte de 1 retalho · sobra ${width}x${length}mm · ${materialName(item.material, state)} ${item.thickness}mm`;
       break;
     }
     case 'task-add':

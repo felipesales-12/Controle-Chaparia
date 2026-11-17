@@ -17,7 +17,7 @@ test('negative and fractional balances are rejected by database rules',async()=>
   const db=env.authenticatedContext('pcp').database();await db.ref('chaparia').set(initialState());await assertFails(db.ref('chaparia/sheets/carbono-2/quantity').set(-1));await assertFails(db.ref('chaparia/sheets/carbono-2/quantity').set(1.5));
 });
 test('invalid dimensions and unsupported thickness are rejected',async()=>{
-  const db=env.authenticatedContext('pcp').database();await db.ref('chaparia').set(initialState());await assertFails(db.ref('chaparia/sheets/carbono-2/width').set(0));await assertFails(db.ref('chaparia/sheets/carbono-2/thickness').set(1.5));
+  const db=env.authenticatedContext('pcp').database();await db.ref('chaparia').set(initialState());await assertFails(db.ref('chaparia/sheets/carbono-2/width').set(0));await assertFails(db.ref('chaparia/sheets/carbono-2/thickness').set(0));
 });
 test('simultaneous initialization does not overwrite preexisting stock',async()=>{
   const a=env.authenticatedContext('office').database().ref('chaparia'),b=env.authenticatedContext('shop').database().ref('chaparia');
@@ -35,4 +35,29 @@ test('real database transactions serialize withdrawals and audit together',async
   const results=await Promise.allSettled([a.transaction(office.update,undefined,false),b.transaction(shop.update,undefined,false)]);
   assert.equal(results.filter(r=>r.status==='fulfilled'&&r.value.committed).length,1);
   const final=(await a.get()).val();assert.equal(final.sheets['carbono-2'].quantity,0);assert.equal(Object.keys(final.movements).length,1);a.off('value');b.off('value');
+});
+test('custom materials and thicknesses validate together in the same root transaction',async()=>{
+  const db=env.authenticatedContext('pcp').database();const state=initialState();
+  state.materials={piso:{id:'piso',name:'Chapa piso',density:7850,revision:1}};
+  state.sheets['piso-3']={id:'piso-3',material:'piso',thickness:3,width:1500,length:3000,quantity:0,location:'P-01',reorderPoint:5,active:true,revision:1};
+  state.remnants={floor:{id:'floor',material:'piso',thickness:3,width:500,length:1000,quantity:1,location:'R1',notes:'',revision:1}};
+  await assertSucceeds(db.ref('chaparia').set(state));assert.equal((await db.ref('chaparia/materials/piso/name').get()).val(),'Chapa piso');
+});
+test('material validation rejects unknown names, invalid densities and non-numeric thickness',async()=>{
+  const db=env.authenticatedContext('pcp').database();await db.ref('chaparia').set(initialState());
+  await assertFails(db.ref('chaparia/sheets/carbono-2/material').set('unknown'));
+  await assertFails(db.ref('chaparia/sheets/carbono-2/thickness').set('3mm'));
+  await assertFails(db.ref('chaparia/materials/piso').set({id:'piso',name:'Chapa piso',density:0,revision:1}));
+});
+test('replenishment points accept zero and reject negative or fractional values',async()=>{
+  const db=env.authenticatedContext('pcp').database();await db.ref('chaparia').set(initialState());
+  await assertSucceeds(db.ref('chaparia/sheets/carbono-2/reorderPoint').set(0));await assertSucceeds(db.ref('chaparia/sheets/carbono-2/reorderPoint').set(5));
+  await assertFails(db.ref('chaparia/sheets/carbono-2/reorderPoint').set(-1));await assertFails(db.ref('chaparia/sheets/carbono-2/reorderPoint').set(1.5));
+});
+test('archive metadata preserves a legacy sheet while rejecting invalid state types',async()=>{
+  const db=env.authenticatedContext('pcp').database();await db.ref('chaparia').set(initialState());
+  await assertSucceeds(db.ref('chaparia/sheets/carbono-2').update({active:false,archivedAt:1700000000000,revision:2}));
+  await assertFails(db.ref('chaparia/sheets/carbono-2/active').set('false'));
+  await assertFails(db.ref('chaparia/sheets/carbono-2/quantity').set(1));
+  assert.equal((await db.ref('chaparia/sheets/carbono-2/quantity').get()).val(),0);
 });

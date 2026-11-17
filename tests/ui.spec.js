@@ -144,3 +144,39 @@ test('an Excel export pending during sign-out cannot download stock after the se
   await page.goto(base+'#conta');await page.getByRole('button',{name:'Sair da conta',exact:true}).click();await expect(page.locator('#login-screen')).toBeVisible();
   await release();await expect(page.locator('.toast.error')).toContainText('A sessão mudou');expect(downloads).toHaveLength(0);
 });
+test('sheet and remnant ordering uses numeric thickness and combined length priorities',async({page,request})=>{
+  await login(page);await page.goto(base+'#chapas');await page.getByLabel('Ordenar chapas').selectOption('thickness-asc');
+  await expect(page.locator('.stock-table tbody tr').first()).toHaveAttribute('data-sheet-id','inox-1_5');
+  await page.getByLabel('Ordenar chapas').selectOption('thickness-desc');await expect(page.locator('.stock-table tbody tr').first()).toHaveAttribute('data-sheet-id','carbono-19_05');
+  const entries=[['two-long',2,1000],['three-short',3,600],['two-short',2,600],['three-long',3,1000]];
+  for(const [id,thickness,length]of entries)await request.post('/__test/mutate',{data:{actor:{uid:'pcp',email:'pcp@example.com'},command:{type:'remnant-add',id,material:'carbono',thickness,width:500,length,quantity:1,location:'R1'}}});
+  await page.goto(base+'#retalhos');await page.getByLabel('Ordenar retalhos').selectOption('thickness-length-asc');
+  await expect.poll(()=>page.locator('[data-remnant-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.remnantId))).toEqual(['two-short','two-long','three-short','three-long']);
+  await page.getByLabel('Ordenar retalhos').selectOption('length-thickness-asc');await expect.poll(()=>page.locator('[data-remnant-id]').evaluateAll(nodes=>nodes.map(n=>n.dataset.remnantId))).toEqual(['two-short','three-short','two-long','three-long']);
+  await page.goto(base+'#pesos');await page.getByRole('button',{name:'Peso por peça',exact:true}).click();await page.getByLabel('Ordenar pesos de chapas').selectOption('thickness-asc');await expect(page.locator('[data-weight-detail=sheets] tbody tr').first()).toHaveAttribute('data-weight-record','inox-1_5');
+  await page.getByLabel('Ordenar pesos de retalhos').selectOption('length-thickness-asc');await expect.poll(()=>page.locator('[data-weight-detail=remnants] [data-weight-record]').evaluateAll(nodes=>nodes.map(n=>n.dataset.weightRecord))).toEqual(['two-short','three-short','two-long','three-long']);
+  await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});
+test('new material and thicknesses flow through stock, replenishment, remnants and Excel',async({page,request})=>{
+  await login(page);await page.goto(base+'#chapas');await page.getByRole('button',{name:'Novo material',exact:true}).click();
+  let form=page.locator('#inventory-dialog');await form.locator('[name=name]').fill('Chapa piso');await save(page);
+  const state=await(await request.get('/__test/data')).json();const material=Object.keys(state.materials)[0];
+  for(const thickness of ['3','4.76']){
+    await page.getByRole('button',{name:'Adicionar espessura',exact:true}).click();await form.locator('[name=material]').selectOption({label:'Chapa piso'});await form.locator('[name=thickness]').fill(thickness);await form.locator('[name=reorderPoint]').fill('5');await save(page);
+  }
+  const id=material+'-3';let row=page.locator(`[data-sheet-id="${id}"]`);
+  await row.getByRole('button',{name:'Entrada',exact:true}).click();await form.locator('[name=quantity]').fill('4');await save(page);await expect(row.locator('.stock-state')).toHaveText('Reposição');
+  await row.getByRole('button',{name:'Editar Chapa piso 3mm',exact:true}).click();await form.locator('[name=reorderPoint]').fill('3');await save(page);await expect(row.locator('.stock-state')).toHaveText('Disponível');await expect(row.locator('.reorder-label')).toContainText('3 un.');
+  await page.goto(base+'#retalhos');await page.getByRole('button',{name:'Cadastrar retalho'}).first().click();await form.locator('[name=material]').selectOption({label:'Chapa piso'});await form.locator('[name=thickness]').selectOption('4.76');await form.locator('[name=width]').fill('500');await form.locator('[name=length]').fill('1000');await form.locator('[name=location]').fill('R-Piso');await save(page);await expect(page.locator('.remnant-card .material-tag')).toHaveText('Chapa piso');
+  await page.goto(base+'#pesos');await expect(page.locator(`[data-weight-material="${material}"] h2`)).toHaveText('Chapa piso');
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();const download=await pending;const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readFile(await download.path()));
+  const sheet=workbook.getWorksheet('Chapas inteiras');let floorRow;sheet.eachRow(r=>{if(r.getCell(1).value===id)floorRow=r;});expect(floorRow.getCell(2).value).toBe('Chapa piso');expect(floorRow.getCell(16).value).toBe(3);
+});
+test('removing a thickness checks available stock and can be reactivated without losing history',async({page,request})=>{
+  await login(page);await page.goto(base+'#chapas');let row=page.locator('[data-sheet-id="carbono-2"]');
+  await row.getByRole('button',{name:'Remover espessura Aço Carbono 2mm',exact:true}).click();await page.locator('#confirm-dialog').getByRole('button',{name:'Remover espessura',exact:true}).click();await expect(row).toHaveCount(0);
+  let state=await(await request.get('/__test/data')).json();expect(state.sheets['carbono-2'].active).toBe(false);expect(Object.values(state.movements).some(m=>m.type==='sheet-remove')).toBe(true);
+  await page.getByRole('button',{name:'Adicionar espessura',exact:true}).click();await page.locator('#inventory-dialog [name=thickness]').fill('2');await save(page);await expect(row).toHaveCount(1);
+  await row.getByRole('button',{name:'Entrada',exact:true}).click();await page.locator('#inventory-dialog [name=quantity]').fill('1');await save(page);
+  await row.getByRole('button',{name:'Remover espessura Aço Carbono 2mm',exact:true}).click();await page.locator('#confirm-dialog').getByRole('button',{name:'Remover espessura',exact:true}).click();await expect(page.locator('.toast.error')).toContainText('Dê baixa');await expect(row.locator('.stock-count')).toHaveText('1');
+});
