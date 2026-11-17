@@ -102,7 +102,7 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **16 testes de lógica:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **17 testes de lógica:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
 - **13 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
 - **6 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
