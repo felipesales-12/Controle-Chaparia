@@ -3,6 +3,7 @@ import { stockWeightSummary, stockWeightDetails } from './weights.js';
 import { icon } from './icons.js';
 import { escapeHTML as h } from './ui.js';
 import { download } from './backup.js';
+import { weightsExcelBuffer } from './weights-excel.js';
 import { orderInventory, sortChoices } from './catalog.js';
 let showDetails = false, exporting = false;
 let sheetWeightOrder = 'material', remnantWeightOrder = 'thickness-length-asc';
@@ -56,7 +57,6 @@ export function initializeWeights({ redraw, notify }) {
     const meta = { generatedAt: new Date(), email: state.email, connected: state.connected };
     exporting = true; button.disabled = true; button.textContent = 'Preparando planilha…';
     try {
-      const { weightsExcelBuffer } = await import('./weights-excel.js');
       const buffer = await weightsExcelBuffer(snapshot, meta);
       const current = cloudState();
       if (!current.authenticated || current.uid !== state.uid || current.email !== state.email) throw new Error('A sessão mudou. Entre novamente e exporte o estoque da sua conta.');

@@ -9,7 +9,7 @@ export async function initializeCloud(){
   const stored=sessionStorage.getItem('qa-email');if(stored)user={uid:stored,email:stored};
   const response=await fetch('/__test/data');data=await response.json();
   new EventSource('/__test/events').onmessage=event=>{data=JSON.parse(event.data);emit();};
-  window.__qa={disconnect:()=>{connected=false;emit();},reconnect:()=>{connected=true;emit();}};
+  window.__qa={expire:()=>{user=null;sessionStorage.removeItem('qa-email');emit();},disconnect:()=>{connected=false;emit();},reconnect:()=>{connected=true;emit();}};
   emit();
 }
 export async function signIn(email,password){if(password!=='valid-password')throw Error('E-mail ou senha inválidos.');user={uid:email,email};sessionStorage.setItem('qa-email',email);emit();}

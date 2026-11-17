@@ -91,7 +91,7 @@ A planilha tem cabeçalhos em azul escuro, destaque verde para retalhos e peso u
 
 O relatório inclui todos os dados cadastrais de estoque dessas categorias, independentemente da visualização aberta na tela. Atividades e histórico de movimentações continuam nas exportações próprias do sistema. Registros sem saldo mantêm seu peso unitário como referência, mas contribuem com **zero** para o peso em estoque.
 
-A exportação captura o estoque uma única vez para manter o arquivo consistente. Ela informa o usuário, o horário de emissão em Brasília e se a conexão estava disponível; sem conexão, usa o último estoque recebido e destaca essa condição. O arquivo é um retrato independente: exporte novamente para obter alterações posteriores. A biblioteca ExcelJS é carregada somente ao clicar para exportar, sem serviço externo para gerar o arquivo.
+A exportação captura o estoque uma única vez para manter o arquivo consistente. Ela informa o usuário, o horário de emissão em Brasília e se a conexão estava disponível; sem conexão, usa o último estoque recebido e destaca essa condição. O arquivo é um retrato independente: exporte novamente para obter alterações posteriores. O exportador ExcelJS é incluído no mesmo arquivo JavaScript do aplicativo, sem carregamento dinâmico ou serviço externo ao clicar para exportar. O build gera um nome de arquivo por versão para evitar reutilização de código antigo pelo cache.
 
 ## Ativar o Firebase
 

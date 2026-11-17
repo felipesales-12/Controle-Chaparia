@@ -63,3 +63,12 @@ A exportação deixa de configurar agrupamento de linhas, que não era usado pel
 A validação independente com os esquemas SpreadsheetML do Apache POI OOXML Full 5.4.1 / XMLBeans 5.3.0 reproduziu as falhas na versão anterior e aprovou abas, tabelas, estilos, textos compartilhados e workbook na versão corrigida. Para validar o esquema base, foram desconsiderados apenas atributos de extensão declarados ignoráveis, conforme Markup Compatibility; o arquivo exportado não foi regravado ou corrigido por outra biblioteca.
 
 Os testes permanentes agora inspecionam o XML dentro do ZIP, verificam as sequências definidas pelo formato e rejeitam as duas estruturas inválidas anteriores. O arquivo realmente baixado pelo Chromium também passa nessa verificação, incluindo o caso de materiais personalizados. A suíte local de lógica/exportação passou com **37 testes**, e os dois fluxos de exportação no navegador passaram. A abertura no aplicativo Microsoft Excel não pôde ser executada neste ambiente.
+
+
+## Correção do carregamento do exportador após atualizações
+
+Em 17/11/2026, foi reportada falha ao buscar um módulo `js/chunks/weights-excel-*.js` de uma versão anterior. O exportador passou a ser importado estaticamente e incorporado no mesmo arquivo JavaScript do aplicativo. O build verifica que há somente um arquivo de código e nenhuma importação dinâmica; o HTML aponta para um nome versionado pelo conteúdo.
+
+O teste de navegador agora bloqueia qualquer pedido posterior de JavaScript e desliga a rede antes da primeira exportação. O arquivo continua sendo gerado a partir do estoque já carregado, sem novos módulos. Também foram verificados os três subdiretórios suportados e o cancelamento de exportação quando a sessão termina. A correção estrutural do XML da planilha continua incluída.
+
+Uma página já aberta com a versão anterior precisa ser recarregada uma vez para receber esta correção. Os saldos e o catálogo no Firebase não são alterados por ela.

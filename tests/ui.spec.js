@@ -123,12 +123,15 @@ test('unit-weight view separates each record from its total quantity and preserv
   await page.getByRole('button',{name:'Resumo por espessura',exact:true}).click();await expect(page.locator('.weight-table tbody tr')).toHaveCount(14);
 });
 test('browser downloads a styled real Excel workbook with unit weights and separate stock sheets',async({page,request})=>{
-  const excelRequests=[];page.on('request',request=>{if(request.url().includes('weights-excel-'))excelRequests.push(request.url());});
-  await login(page);await entry(page,2);await page.goto(base+'#pesos');expect(excelRequests).toHaveLength(0);
+  const blockedScripts=[];
+  await login(page);await entry(page,2);await page.goto(base+'#pesos');
   await request.post('/__test/mutate',{data:{actor:{uid:'factory',email:'fabrica@example.com'},command:{type:'remnant-add',id:'export-remnant',material:'inox',thickness:2,width:500,length:1000,quantity:3,location:'R-01',notes:'Furo no canto'}}});
   await expect(page.locator('[data-weight-summary=remnant] strong')).toHaveText('24,00 kg');
+  // Simulate files from a previous deployment being unavailable, and the first export offline.
+  await page.route('**/js/**',route=>{blockedScripts.push(route.request().url());return route.abort();});
+  await page.context().setOffline(true);await page.evaluate(()=>window.__qa.disconnect());
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();const download=await pending;
-  expect(download.suggestedFilename()).toMatch(/^chaparia-pesos-\d{4}-\d{2}-\d{2}\.xlsx$/);expect(excelRequests.length).toBeGreaterThan(0);
+  expect(download.suggestedFilename()).toMatch(/^chaparia-pesos-\d{4}-\d{2}-\d{2}\.xlsx$/);expect(blockedScripts).toHaveLength(0);
   const fileBuffer=await readFile(await download.path());await assertWorkbookSequences(fileBuffer);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(fileBuffer);
   expect(workbook.worksheets.map(s=>s.name)).toEqual(['Resumo','Chapas inteiras','Retalhos','Critérios']);
   expect(workbook.getWorksheet('Chapas inteiras').getCell('G9').result).toBeCloseTo(70.65);expect(workbook.getWorksheet('Chapas inteiras').getCell('H9').result).toBeCloseTo(141.3);
@@ -139,11 +142,9 @@ test('browser downloads a styled real Excel workbook with unit weights and separ
 });
 test('an Excel export pending during sign-out cannot download stock after the session ends',async({page})=>{
   await login(page);await page.goto(base+'#pesos');
-  let release;let received;const arrived=new Promise(resolve=>{received=resolve;});const downloads=[];page.on('download',download=>downloads.push(download));
-  await page.route('**/weights-excel-*.js',route=>{release=()=>route.continue();received();});
-  await page.getByRole('button',{name:'Exportar Excel (.xlsx)'}).click();await arrived;
-  await page.goto(base+'#conta');await page.getByRole('button',{name:'Sair da conta',exact:true}).click();await expect(page.locator('#login-screen')).toBeVisible();
-  await release();await expect(page.locator('.toast.error')).toContainText('A sessão mudou');expect(downloads).toHaveLength(0);
+  const downloads=[];page.on('download',download=>downloads.push(download));
+  await page.evaluate(()=>{document.querySelector('[data-weight-action=export]').click();window.__qa.expire();});
+  await expect(page.locator('#login-screen')).toBeVisible();await expect(page.locator('.toast.error')).toContainText('A sessão mudou');expect(downloads).toHaveLength(0);
 });
 test('sheet and remnant ordering uses numeric thickness and combined length priorities',async({page,request})=>{
   await login(page);await page.goto(base+'#chapas');await page.getByLabel('Ordenar chapas').selectOption('thickness-asc');
