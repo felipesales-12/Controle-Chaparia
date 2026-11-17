@@ -76,3 +76,34 @@ test('an open activity editor rejects stale revisions while preserving its draft
   let state=await(await request.get('/__test/data')).json();await request.post('/__test/mutate',{data:{actor:{uid:'factory',email:'fabrica@example.com'},command:{type:'task-put',task:{...state.tasks[t.id],title:'Alteração remota'}}}});
   await page.locator('#task-form').getByRole('button',{name:'Salvar atividade'}).click();await expect(page.locator('#form-error')).toContainText('outro aparelho');await expect(page.locator('#task-form [name=title]')).toHaveValue('Minha alteração');
 });
+test('weights tab groups steel and thickness and updates from synchronized stock',async({page,request})=>{
+  await login(page);await page.getByRole('link',{name:'Pesos',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Pesos do estoque.'})).toBeVisible();
+  await expect(page.locator('.weight-table tbody tr')).toHaveCount(14);
+  await expect(page.locator('[data-weight-summary=total] strong')).toHaveText('0,00 kg');
+  const post=async command=>{const response=await request.post('/__test/mutate',{data:{actor:{uid:'factory',email:'fabrica@example.com'},command}});expect(response.ok()).toBe(true);};
+  await post({type:'sheet-in',id:'carbono-2',quantity:2});
+  await post({type:'sheet-in',id:'inox-2',quantity:1});
+  await post({type:'remnant-add',id:'weight-remnant',material:'carbono',thickness:2,width:500,length:1000,quantity:3,location:'R-01'});
+  const carbon=page.locator('[data-weight-material=carbono] [data-weight-thickness="2"]');
+  const stainless=page.locator('[data-weight-material=inox] [data-weight-thickness="2"]');
+  await expect(carbon.locator('[data-weight-cell=sheet]')).toHaveText('141,30 kg');
+  await expect(carbon.locator('[data-weight-cell=remnant]')).toHaveText('23,55 kg');
+  await expect(stainless.locator('[data-weight-cell=sheet]')).toHaveText('72,00 kg');
+  await expect(page.locator('[data-weight-summary=total] strong')).toHaveText('236,85 kg');
+  await post({type:'remnant-consume',id:'weight-remnant',revision:1});
+  await expect(carbon.locator('[data-weight-cell=remnant]')).toHaveText('0,00 kg');
+  await post({type:'sheet-edit',id:'carbono-2',revision:2,width:1000,length:2000,location:'A1'});
+  await expect(carbon.locator('[data-weight-cell=sheet]')).toHaveText('62,80 kg');
+  await expect(page.locator('[data-weight-summary=total] strong')).toHaveText('134,80 kg');
+  await page.reload();await expect(page.locator('[data-weight-summary=total] strong')).toHaveText('134,80 kg');
+});
+test('mobile weights navigation and tables keep the page within the screen',async({page})=>{
+  await page.setViewportSize({width:390,height:844});await login(page);
+  await page.getByRole('button',{name:'Abrir menu'}).click();await page.getByRole('link',{name:'Pesos',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Pesos do estoque.'})).toBeVisible();
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await expect(page.locator('.weight-method')).toContainText('7.850 kg/m³');
+  await expect(page.locator('.weight-method')).toContainText('8.000 kg/m³');
+  await expect(page.locator('[data-weight-material=carbono] .table-scroll')).toHaveAttribute('tabindex','0');
+});

@@ -1,4 +1,5 @@
 const paths = {
+  weight: '<path d="M8 7h8l4 14H4Z"/><circle cx="12" cy="4" r="3"/><path d="M9 14h6"/>',
   layers: '<path d="m12 3 10 5-10 5L2 8Zm-10 10 10 5 10-5M2 13l10 5 10-5"/>',
   cut: '<path d="m14 4-6 6m6 4L8 8m6 6 6 6M14 10l6-6"/><circle cx="5" cy="5" r="3"/><circle cx="5" cy="13" r="3"/>',
   cloud: '<path d="M7 18a5 5 0 1 1 1-10 7 7 0 0 1 13 3 4 4 0 0 1-1 7Z"/><path d="m9 13 3-3 3 3m-3-3v10"/>',

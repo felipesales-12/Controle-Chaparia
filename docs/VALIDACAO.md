@@ -32,3 +32,9 @@ npm run test:rules
 São seis casos no emulador, incluindo leitura/escrita sem autenticação, catálogo inicial, validação de saldo/dimensões e concorrência. O workflow `verify.yml` executa esses casos no GitHub Actions. O teste de concorrência usa o mesmo adaptador de atualização das transações de produção, incluindo aborto seguro quando o saldo se torna insuficiente durante uma repetição.
 
 O teste final com duas contas reais, dois aparelhos e as regras publicadas está descrito em `CONFIGURACAO.md`. Os campos ausentes do Firebase não foram inventados e nenhum banco de produção foi alterado durante a implementação.
+
+## Aba Pesos
+
+Verificação adicional em 17/11/2026: **22 testes de lógica e 15 testes de interface aprovados localmente**, com build de produção concluído. As regras e o esquema do banco permanecem iguais aos da verificação acima.
+
+Os novos casos conferem conversão de mm³ para kg, densidades diferentes por aço, agrupamento por espessura, retalhos de dimensões variadas, saldo zero, corte com sub-retalho, atualização automática da tela e navegação em celular. Exemplo de referência: uma chapa de aço carbono de 3000 × 1500 × 2 mm corresponde a 70,65 kg.

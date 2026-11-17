@@ -32,6 +32,7 @@ A persistência de atividades passa a ser obrigatoriamente na nuvem, com revisõ
 | Retalhos | Material, espessura, medidas, quantidade, identificação/prateleira e observações |
 | Aproveitamento | Dimensões mínimas, material/espessura, rotação opcional de 90° e compatíveis em destaque |
 | Corte de retalho | Baixa total ou registro da sobra de uma peça, preservando as outras peças do lote |
+| Pesos | Chapas e retalhos em kg, separados por tipo de aço e espessura, com subtotais e total geral |
 | Atividades | Todas as operações descritas acima, integradas ao mesmo banco compartilhado |
 | Movimentações | Usuário, horário do servidor, motivo/OP, dados anteriores/posteriores e exportação JSON |
 
@@ -41,6 +42,19 @@ Catálogo inicial com **14 itens e saldo zero**, dimensões iniciais **3000 × 1
 - Aço Inox: **1.5, 2, 3, 4, 5, 6 mm**.
 
 O sistema cria o catálogo somente se `/chaparia` estiver vazio (`null`), usando uma transação. Ele preserva um catálogo existente e os demais nós da raiz. Um banco com estrutura incompatível gera orientação de erro, sem ser substituído automaticamente.
+
+## Aba Pesos
+
+A aba **Pesos** calcula o peso estimado em kg do estoque sincronizado. Cada tipo de aço tem uma tabela com as espessuras do catálogo, quantidade e peso das chapas inteiras, quantidade e peso dos retalhos, subtotais e total geral. Entradas, baixas e novas dimensões atualizam os pesos automaticamente; peças com saldo zero não acrescentam peso.
+
+O cálculo usa as dimensões individuais de cada registro e suas quantidades, sem arredondar antes da soma:
+
+```text
+Peso (kg) = largura (mm) × comprimento (mm) × espessura (mm)
+            × quantidade × densidade (kg/m³) ÷ 1.000.000.000
+```
+
+Densidades de referência: **Aço Carbono 7.850 kg/m³** e **Aço Inox 8.000 kg/m³**. Por exemplo, uma chapa de aço carbono de 3000 × 1500 × 2 mm pesa aproximadamente **70,65 kg**. A liga específica pode alterar o peso real. Retalhos em L ou com furos são estimados pelo retângulo cadastrado, sem descontar recortes. Essas premissas aparecem na própria tela. Os pesos são derivados do estoque, sem gravar um saldo paralelo no banco.
 
 ## Ativar o Firebase
 
@@ -102,8 +116,8 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **17 testes de lógica:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **13 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **22 testes de lógica:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **15 testes de interface:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
 - **6 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória e um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
@@ -158,12 +172,15 @@ Controle-Chaparia/
 │   ├── icons.js
 │   ├── inventory.js
 │   ├── tasks.js
+│   ├── weights.js
+│   ├── weights-page.js
 │   └── ui.js
 ├── scripts/
 │   ├── build.mjs
 │   └── preview.mjs
 ├── tests/
 │   ├── domain.test.js
+│   ├── weights.test.js
 │   ├── rules.test.js
 │   ├── ui.spec.js
 │   ├── serve.mjs

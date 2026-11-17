@@ -5,10 +5,11 @@ import { icon } from './icons.js';
 import { inventoryDashboard, sheetsPage, remnantsPage, movementsPage, initializeInventory } from './inventory.js';
 import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
 import { accountPage } from './account.js';
+import { weightsPage } from './weights-page.js';
 
 const $ = selector => document.querySelector(selector);
 const html = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const labels = { dashboard: 'Visão geral', chapas: 'Chapas inteiras', retalhos: 'Retalhos', movimentacoes: 'Movimentações', resumo: 'Painel de atividades', atividades: 'Todas as atividades', pendentes: 'Atividades pendentes', andamento: 'Atividades em andamento', historico: 'Histórico de concluídas', backup: 'Backup e restauração', configuracoes: 'Configurações', conta: 'Conta e nuvem' };
+const labels = { dashboard: 'Visão geral', chapas: 'Chapas inteiras', retalhos: 'Retalhos', pesos: 'Pesos do estoque', movimentacoes: 'Movimentações', resumo: 'Painel de atividades', atividades: 'Todas as atividades', pendentes: 'Atividades pendentes', andamento: 'Atividades em andamento', historico: 'Histórico de concluídas', backup: 'Backup e restauração', configuracoes: 'Configurações', conta: 'Conta e nuvem' };
 let tasks = [], settings = {}, ready = false, busy = false, editingId = null, limit = 50;
 let filters = {};
 let preserveNavigationFilters = false;
@@ -59,7 +60,7 @@ function render() {
   });
   const inCloud = cloudState().mode === 'cloud';
   $('#save-status').textContent = lastSaved ? `Salvo ${inCloud ? 'na nuvem' : 'neste navegador'} às ${new Date(lastSaved).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : inCloud ? 'Dados da conta na nuvem' : 'Dados armazenados neste navegador';
-  $('#main').innerHTML = page === 'dashboard' ? inventoryDashboard(metrics) : page === 'chapas' ? sheetsPage() : page === 'retalhos' ? remnantsPage() : page === 'movimentacoes' ? movementsPage() : page === 'resumo' ? dashboard(metrics) : page === 'backup' ? backupPage() : page === 'configuracoes' ? settingsPage() : page === 'conta' ? accountPage() : listPage();
+  $('#main').innerHTML = page === 'dashboard' ? inventoryDashboard(metrics) : page === 'chapas' ? sheetsPage() : page === 'retalhos' ? remnantsPage() : page === 'pesos' ? weightsPage() : page === 'movimentacoes' ? movementsPage() : page === 'resumo' ? dashboard(metrics) : page === 'backup' ? backupPage() : page === 'configuracoes' ? settingsPage() : page === 'conta' ? accountPage() : listPage();
   updateCloudChrome();
   if (focusId) {
     const replacement = document.getElementById(focusId);
