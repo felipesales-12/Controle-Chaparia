@@ -6,7 +6,7 @@ export function watchSharedData(db, { onChange, onError }) {
   const stops = [], first = new Set();
   let data = {}, stopped = false, loaded = false, seeding = false;
   let stopRecent, stopHistory, recentStarted = false, historyStarted = false, historyLoaded = false, historyError = '';
-  let scheduled = false;
+  let scheduled = false, readinessScheduled = false;
   const publish = () => {
     if (scheduled || stopped) return;
     scheduled = true;
@@ -37,7 +37,13 @@ export function watchSharedData(db, { onChange, onError }) {
     stops.push(onValue(ref(db, `chaparia/${name}`), snap => {
       if (stopped) return;
       data = { ...data, [name]: snap.val() ?? (['materials','tasks'].includes(name) ? {} : null) };
-      first.add(name); checkReady();
+      first.add(name);
+      // One atomic server update can notify several child listeners in sequence.
+      // Validate their combined state after that notification batch completes.
+      if (!readinessScheduled) {
+        readinessScheduled = true;
+        queueMicrotask(() => { readinessScheduled = false; checkReady(); });
+      }
     }, error => { if (!stopped) { loaded = false; onError(error); } }));
   }
   return {
