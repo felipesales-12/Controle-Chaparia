@@ -1,5 +1,6 @@
 // Reference codes are values, never Firebase keys. Exact material/thickness
-// pairs keep 9.53 separate from 9.35 and stainless 6.35 separate from 6 mm.
+// pairs keep 9.53 separate from 9.35. Stainless 6 mm is an alias of 6.35 mm.
+import { canonicalThickness } from './inox-merge.js';
 export const PRODUCT_CODES = Object.freeze([
   ['carbono', 2, '3.0011.020.2'],
   ['carbono', 3, '3.0011.020.1'],
@@ -16,8 +17,8 @@ export const PRODUCT_CODES = Object.freeze([
   ['inox', 6.35, '3.0011.010.1']
 ].map(([material, thickness, code]) => Object.freeze({ material, thickness, code })));
 
-export const productCode = item => PRODUCT_CODES.find(row => row.material === item.material && row.thickness === Number(item.thickness))?.code || '';
-export const missingProductTypes = data => PRODUCT_CODES.filter(row => !Object.values(data?.sheets || {}).some(sheet => sheet.material === row.material && Number(sheet.thickness) === row.thickness));
+export const productCode = item => PRODUCT_CODES.find(row => row.material === item.material && row.thickness === canonicalThickness(item.material,item.thickness))?.code || '';
+export const missingProductTypes = data => PRODUCT_CODES.filter(row => !Object.values(data?.sheets || {}).some(sheet => sheet.material === row.material && canonicalThickness(sheet.material,sheet.thickness) === row.thickness));
 
 // Used only inside the authenticated root transaction. Existing balances,
 // locations, dimensions, revisions and archived types are kept intact.

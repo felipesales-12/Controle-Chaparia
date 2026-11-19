@@ -81,7 +81,7 @@ test('inox headers keep diameter and quantity distinct, preserve 1.5mm and retai
   assert.equal(parsed.batch.records.length, 2);
   assert.equal(parsed.batch.records[0].thickness, 1.5);
   const circle = parsed.batch.records[1];
-  assert.equal(circle.width, 250); assert.equal(circle.length, 250); assert.equal(circle.quantity, 3);
+  assert.equal(circle.thickness, 6.35); assert.equal(circle.width, 250); assert.equal(circle.length, 250); assert.equal(circle.quantity, 3);
   assert.match(circle.notes, /Disco circular/); assert.match(circle.notes, /Conferir foto/);
   assert.equal(parsed.warnings.length, 1);
 });

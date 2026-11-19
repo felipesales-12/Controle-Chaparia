@@ -3,7 +3,8 @@ import { priorities, statuses, createTask, selectTasks, getMetrics, dateLabel, d
 import { backupJSON, tasksCSV, validateBackup, download } from './backup.js';
 import { icon } from './icons.js';
 import { inventoryDashboard, sheetsPage, remnantsPage, movementsPage, initializeInventory } from './inventory.js';
-import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, ensureMovementHistory, retryCloud, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
+import { cloudState, subscribeCloud, initializeCloud, cloudDatabase, ensureMovementHistory, retryCloud, mutate, signIn, sendRecovery, updatePassword, signOut } from './cloud.js';
+import { needsInoxMerge } from './inox-merge.js';
 import { consumeRemnantImportLink } from './remnant-import-ui.js';
 import { accountPage } from './account.js';
 import { weightsPage, initializeWeights } from './weights-page.js';
@@ -20,6 +21,7 @@ let draftTask = null, cloudTransition = false;
 let editingTask = null;
 let lastCloudData = null;
 let mutationError = '';
+let inoxMergeInProgress = false, inoxMergeFailedAccount = '';
 const channel = globalThis.BroadcastChannel ? new BroadcastChannel('compasso-updates') : null;
 
 document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.icon); });
@@ -238,7 +240,7 @@ async function actionHandler(action, element) {
     await signOut();
     return;
   }
-  if (action === 'cloud-sync') { await refresh(false); return; }
+  if (action === 'cloud-sync') { inoxMergeFailedAccount = ''; scheduleInoxMerge(cloudState()); await refresh(false); return; }
   if (!ready) return notify('Entre e aguarde o carregamento da nuvem.', true);
   if (action === 'new') return openTask();
   if (action === 'close-task') { if (!busy) $('#task-dialog').close(); return; }
@@ -367,6 +369,27 @@ function updateCloudChrome() {
   $('#storage-banner').textContent = state.error || (state.saving ? 'Aguardando confirmação do Firebase. Mantenha esta página aberta.' : 'Sem conexão com a nuvem. Reconecte antes de movimentar o estoque.');
   $('.avatar').textContent = state.email ? state.email.slice(0,2).toUpperCase() : '—';
 }
+function scheduleInoxMerge(state) {
+  if (!state.authenticated || !needsInoxMerge(state.data)) { inoxMergeFailedAccount = ''; return; }
+  const account = state.uid || state.email;
+  if (!state.loaded || !state.connected || state.saving || inoxMergeInProgress || inoxMergeFailedAccount === account) return;
+  inoxMergeInProgress = true;
+  queueMicrotask(async () => {
+    const current = cloudState();
+    if (!current.authenticated || (current.uid || current.email) !== account || !current.connected || current.saving || !needsInoxMerge(current.data)) { inoxMergeInProgress = false; return; }
+    try {
+      await mutate({type:'merge-inox-6-635',reason:'Unificação solicitada do inox 6 mm e 6,35 mm; código 3.0011.010.1.'});
+      const latest = cloudState();
+      if (latest.authenticated && (latest.uid || latest.email) === account) notify('Inox unificado em 6,35 mm. Quantidades e histórico preservados.');
+    } catch (error) {
+      const latest = cloudState();
+      if (latest.authenticated && (latest.uid || latest.email) === account && needsInoxMerge(latest.data)) {
+        inoxMergeFailedAccount = account;
+        if (!error.message.includes('já está unificado')) notify(`Não foi possível confirmar a unificação do inox. ${error.message} Tente novamente em Chapas.`,true);
+      }
+    } finally { inoxMergeInProgress = false; adoptCloud(); }
+  });
+}
 function adoptCloud() {
   const state = cloudState();
   const authorized = state.authenticated && state.loaded;
@@ -390,6 +413,7 @@ function adoptCloud() {
     render();
   }
   updateCloudChrome();
+  scheduleInoxMerge(state);
 }
 subscribeCloud(adoptCloud);
 document.addEventListener('submit', async event => {

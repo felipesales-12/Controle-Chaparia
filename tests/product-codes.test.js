@@ -18,16 +18,16 @@ test('all 13 supplied product codes map to exact material and thickness pairs',(
     ['inox',1.5,'3.0011.010.4'],['inox',2,'3.0011.010.11'],['inox',3,'3.0011.010.2'],['inox',5,'3.0011.010.20'],['inox',6.35,'3.0011.010.1']
   ]);
   assert.equal(productCode({material:'carbono',thickness:9.35}),'');
-  assert.equal(productCode({material:'inox',thickness:6}),'');
+  assert.equal(productCode({material:'inox',thickness:6}),'3.0011.010.1');
   assert.equal(productCode({material:'inox',thickness:'6.35'}),'3.0011.010.1');
   assert.equal(productCode({material:'piso',thickness:2}),'');
 });
 test('missing coded types are added with zero stock while legacy balances and metadata remain intact',()=>{
-  const original=initialState();original.sheets['inox-6'].quantity=5;original.sheets['inox-6'].location='I-6';original.sheets['carbono-9_35'].quantity=7;
-  assert.deepEqual(missingProductTypes(original).map(r=>r.thickness),[9.53,6.35]);
+  const original=initialState();original.sheets['inox-6_35'].quantity=5;original.sheets['inox-6_35'].location='I-6';original.sheets['carbono-9_35'].quantity=7;
+  assert.deepEqual(missingProductTypes(original).map(r=>r.thickness),[9.53]);
   const next=apply(original,{type:'catalog-product-codes',eventId:'catalog'});
   for(const [id,sheet] of Object.entries(original.sheets))assert.deepEqual(next.sheets[id],sheet);
-  assert.equal(next.sheets['carbono-9_53'].quantity,0);assert.equal(next.sheets['inox-6_35'].quantity,0);
+  assert.equal(next.sheets['carbono-9_53'].quantity,0);assert.equal(next.sheets['inox-6_35'].quantity,5);
   assert.equal(Object.keys(original.sheets).length,14);assert.equal(next.movements.catalog.after.codes.length,13);
   assert.equal(next.movements.catalog.actor.uid,'pcp');
   assert.throws(()=>apply(next,{type:'catalog-product-codes',eventId:'again'}),/já estão cadastradas/);
@@ -39,10 +39,10 @@ test('catalog update respects archived thicknesses and preserves tasks and remna
 });
 test('prepared photo batch adds catalog types and each remnant in one audited operation',()=>{
   const original=initialState(),plan=prepareRemnantImport(batch(),original);
-  assert.equal(plan.additions.length,2);assert.equal(Object.keys(original.sheets).length,14);
+  assert.equal(plan.additions.length,1);assert.equal(Object.keys(original.sheets).length,14);
   const state=apply(original,{type:'remnant-import',batch:batch(),eventId:'photos'});
-  assert.equal(Object.keys(state.remnants).length,2);assert.equal(Object.keys(state.sheets).length,16);
-  assert.equal(Object.keys(state.movements).length,5);assert.equal(state.movements.photos.after.productCodes.length,13);
+  assert.equal(Object.keys(state.remnants).length,2);assert.equal(Object.keys(state.sheets).length,15);
+  assert.equal(Object.keys(state.movements).length,4);assert.equal(state.movements.photos.after.productCodes.length,13);
   const details=stockWeightDetails(state);
   assert.equal(details.remnants.find(r=>r.thickness===19.05).productCode,'3.0011.020.8');
   assert.equal(details.remnants.find(r=>r.thickness===12.7).productCode,'3.0011.020.11');

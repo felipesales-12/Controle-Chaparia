@@ -17,6 +17,12 @@ createServer(async(req,res)=>{
   if(url.pathname==='/__test/events'){res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache','Connection':'keep-alive'});res.write(`data: ${JSON.stringify(state)}\n\n`);subscribers.add(res);req.on('close',()=>subscribers.delete(res));return;}
   if(url.pathname==='/__test/data'){res.writeHead(200,{'Content-Type':'application/json'}).end(JSON.stringify(state));return;}
   if(url.pathname==='/__test/reset'){state=initialState();for(const client of subscribers)client.write(`data: ${JSON.stringify(state)}\n\n`);res.end('{}');return;}
+  if(url.pathname==='/__test/legacy-inox'){
+    state=initialState();state.sheets['inox-6_35'].quantity=3;
+    state.sheets['inox-6']={...state.sheets['inox-6_35'],id:'inox-6',thickness:6,quantity:2};
+    state.remnants={'legacy-r':{id:'legacy-r',material:'inox',thickness:6,width:500,length:1000,quantity:2,location:'R1',notes:'Preservar formato',revision:1},consumed:{id:'consumed',material:'inox',thickness:6,width:100,length:200,quantity:0,location:'R2',notes:'Consumido',revision:1}};
+    for(const client of subscribers)client.write(`data: ${JSON.stringify(state)}\n\n`);res.end('{}');return;
+  }
   if(url.pathname==='/__test/mutate'){
     try{let raw='';for await(const chunk of req)raw+=chunk;const {command,actor}=JSON.parse(raw);state=applyOperation(state,{...command,eventId:randomUUID()},actor,Date.now());for(const client of subscribers)client.write(`data: ${JSON.stringify(state)}\n\n`);res.writeHead(200,{'Content-Type':'application/json'}).end(JSON.stringify(state));}
     catch(error){res.writeHead(400,{'Content-Type':'application/json'}).end(JSON.stringify({error:error.message}));}return;

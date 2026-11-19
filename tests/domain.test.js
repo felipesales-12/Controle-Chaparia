@@ -10,7 +10,7 @@ const task = () => createTask({ title:'Inspecionar corte', requester:'PCP', loca
 test('empty database seeds exactly 14 catalog items with zero balance', () => {
   const state=initialState(); assert.equal(Object.keys(state.sheets).length,14); assert.equal(criticalSheets(state.sheets).length,14);
   assert.deepEqual(Object.values(state.sheets).filter(s=>s.material==='carbono').map(s=>s.thickness),[2,3,4.76,6.35,7.94,9.35,12.7,19.05]);
-  assert.deepEqual(Object.values(state.sheets).filter(s=>s.material==='inox').map(s=>s.thickness),[1.5,2,3,4,5,6]);
+  assert.deepEqual(Object.values(state.sheets).filter(s=>s.material==='inox').map(s=>s.thickness),[1.5,2,3,4,5,6.35]);
   assert.ok(Object.values(state.sheets).every(s=>s.quantity===0));
 });
 test('stock and audit commit together without mutating the old state',()=>{

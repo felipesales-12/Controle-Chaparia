@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { canonicalThickness, canonicalBatch } from './inox-merge.js';
 
 const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const numeric = value => Number(String(value ?? '').replace(',', '.'));
@@ -27,7 +28,7 @@ export async function readPreparedRemnantLink(payload) {
       chunks.push(value);
     }
   } finally { await reader.cancel(); }
-  return JSON.parse(await new Blob(chunks).text());
+  return canonicalBatch(JSON.parse(await new Blob(chunks).text()));
 }
 
 export function validateRemnantCorrections(corrections) {
@@ -56,7 +57,7 @@ export function applyRemnantCorrections(parsed, corrections) {
 // Reads values only: formulas, macros and instructions in other tabs never run.
 export async function readRemnantFile(file) {
   if (file.size > 5 * 1024 * 1024) throw new Error('Selecione um arquivo de até 5 MB.');
-  if (/\.json$/i.test(file.name)) return { batch: JSON.parse(await file.text()), pending: [], warnings: [] };
+  if (/\.json$/i.test(file.name)) return { batch: canonicalBatch(JSON.parse(await file.text())), pending: [], warnings: [] };
   if (!/\.xlsx$/i.test(file.name)) throw new Error('Selecione a planilha .xlsx ou um arquivo de importação .json.');
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const readXml = async path => {
@@ -102,9 +103,10 @@ export function parseRemnantRows(rows, filename) {
     if (!material || (code.startsWith('INOX-') ? material !== 'inox' : material !== 'carbono')) throw new Error(`${code}: confira o material e o prefixo do código.`);
     materials.add(material);
     const record = {
-      code, material, thickness: numeric(get(row, 'thickness')), width: numeric(get(row, 'width')), length: numeric(get(row, 'length')), quantity: numeric(get(row, 'quantity')), location: code,
+      code, material, thickness: canonicalThickness(material,numeric(get(row, 'thickness'))), width: numeric(get(row, 'width')), length: numeric(get(row, 'length')), quantity: numeric(get(row, 'quantity')), location: code,
       notes: `Origem: ${filename}; ${get(row, 'origin')}, linha ${get(row, 'order')}. Anotação: ${get(row, 'annotation')}. Prateleira não informada.`
     };
+    if (material === 'inox' && numeric(get(row,'thickness')) === 6) record.notes += ' Espessura original 6 mm unificada como inox 6,35 mm, código 3.0011.010.1.';
     if (get(row, 'notes')) record.notes += ` Observação de origem: ${get(row, 'notes')}.`;
     const circular = normalize(get(row, 'format')) === 'circular';
     const writtenDiameter = /^[Ø⌀]\s*(\d+(?:[.,]\d+)?)(?:\s*mm)?$/i.exec(get(row, 'annotation'));

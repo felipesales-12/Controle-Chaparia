@@ -103,9 +103,21 @@ Os 13 códigos comerciais informados ficam em `js/product-codes.js`, associados 
 
 Em Chapas, abra **Códigos por material e espessura** para consultar a tabela completa. O botão para adicionar espessuras ausentes cria somente os tipos que ainda não existem, com saldo zero, e grava a relação de códigos no histórico da operação. Também é possível completar o catálogo junto com um lote preparado que tenha `ensureProductCatalog: true`; retalhos, novos tipos e auditoria são gravados na mesma transação Firebase.
 
-Os tipos antigos de carbono 9,35 mm e inox 6 mm continuam separados de 9,53 mm e 6,35 mm. Nenhum saldo, localização ou identificador existente é convertido. Tipos arquivados não são reativados automaticamente. Itens sem código informado continuam sem código. Não é necessário modificar as regras atuais do Firebase: os códigos são referência do aplicativo e são incluídos na auditoria, sem acrescentar campos aos registros de estoque existentes.
+Carbono 9,35 mm continua separado de 9,53 mm. No inox, 6 mm é tratado como o mesmo tipo de 6,35 mm, com o código 3.0011.010.1. Tipos arquivados não são reativados automaticamente. Itens sem código informado continuam sem código. Não é necessário modificar as regras atuais do Firebase: os códigos são referência do aplicativo e são incluídos na auditoria, sem acrescentar campos aos registros de estoque existentes.
 
 Retalhos em meia-lua mantêm as duas medidas do envelope retangular e a identificação do formato nas observações. O peso é estimado pelo envelope, sem descontar a parte recortada.
+
+## Unificação do inox 6 mm em 6,35 mm
+
+Depois do login, o aplicativo detecta registros antigos de inox 6 mm e executa automaticamente uma transação no Firebase para unificá-los em **6,35 mm**, código **3.0011.010.1**. Bancos novos já começam com 6,35 mm. Entradas manuais, planilhas e links preparados que ainda indiquem inox 6 mm passam a usar 6,35 mm, impedindo a recriação de uma segunda espessura.
+
+Chapas com dimensões, localização e situação ativa iguais somam seus saldos. Lotes com medidas/prateleiras diferentes, situações de arquivamento diferentes ou cuja soma ultrapasse o limite por registro continuam separados dentro da mesma espessura. O ponto de reposição dos lotes somados usa o maior dos dois limites. Um destino ausente é criado a partir dos dados do lote de origem.
+
+Os retalhos mantêm seus identificadores, quantidades, medidas, localização, notas, lote de importação e relação de origem. Itens consumidos continuam com saldo zero. A espessura e a revisão são atualizadas. Os pesos passam a usar 6,35 mm e o resumo deixa de apresentar uma linha separada de inox 6 mm.
+
+A auditoria anterior permanece intacta. Uma nova movimentação guarda os registros anteriores e posteriores, o usuário, o horário, os identificadores de origem/destino e a conferência das quantidades. Duas sessões simultâneas não somam o estoque duas vezes. Reabrir o site ou reimportar um lote já cadastrado não restaura peças consumidas.
+
+A unificação ocorre com o estoque já aberto, sem manter a tela de login aguardando essa gravação. Se a conexão cair durante a gravação, a tela informa que está aguardando a confirmação; mantenha a aba aberta até reconectar. Se o Firebase recusar a operação, a mensagem informa a falha, e o botão de unificação em **Chapas** permite tentar novamente. Nenhuma regra do Firebase precisa ser alterada para essa atualização.
 
 ## Importar retalhos de uma planilha
 
@@ -179,9 +191,9 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **53 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **31 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
-- **15 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
+- **60 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **33 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **17 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória; dois testes adicionais usam o SDK real para verificar o transporte HTTP alternativo, a política de conteúdo e o cancelamento da espera. Eles utilizam um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
 

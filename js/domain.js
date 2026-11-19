@@ -1,16 +1,17 @@
 import { validateBackup } from './backup.js';
 import { PRODUCT_CODES, addMissingProductTypes, productCode } from './product-codes.js';
+import { canonicalThickness, mergeInoxStock } from './inox-merge.js';
 
 import { MATERIALS, getMaterials, materialName, activeSheets, needsRestock, reorderPoint } from './catalog.js';
 export { MATERIALS, materialName } from './catalog.js';
-export const sheetId = (material, thickness) => `${material}-${String(thickness).replace('.', '_')}`;
+export const sheetId = (material, thickness) => `${material}-${String(canonicalThickness(material,thickness)).replace('.', '_')}`;
 export function initialState() {
   return { schemaVersion: 1, sheets: Object.fromEntries(Object.entries(MATERIALS).flatMap(([material, info]) => info.thicknesses.map(thickness => {
     const id = sheetId(material, thickness);
     return [id, { id, material, thickness, width: 1500, length: 3000, quantity: 0, location: '', revision: 1 }];
   }))) };
 }
-export const criticalSheets = sheets => Object.values(sheets || {}).filter(needsRestock);
+export const criticalSheets = sheets => activeSheets({sheets}).filter(needsRestock);
 export const purchaseText = (sheets, data = {}) => ['SOLICITAÇÃO DE COMPRA • CHAPARIA', ...criticalSheets(sheets).map(s => `Solicitar mais chapas: ${materialName(s.material, data)} ${s.thickness}mm — Restam ${s.quantity} chapas${productCode(s) ? ` — Código ${productCode(s)}` : ''} (ponto de reposição: ${reorderPoint(s)}; ${s.length}x${s.width}mm)${s.location ? ` — ${s.location}` : ''}`)].join('\n');
 export function number(value, label, integer = false, allowZero = false) {
   const n = Number(value);
@@ -24,8 +25,9 @@ function validKey(id) {
 }
 function material(values, data = {}) {
   const materials = getMaterials(data);
-  if (!Object.hasOwn(materials, values.material) || !materials[values.material].thicknesses.includes(Number(values.thickness))) throw new Error('Selecione um material e uma espessura do catálogo ativo.');
-  return { material: values.material, thickness: Number(values.thickness) };
+  const thickness = canonicalThickness(values.material,values.thickness);
+  if (!Object.hasOwn(materials, values.material) || !materials[values.material].thicknesses.includes(thickness)) throw new Error('Selecione um material e uma espessura do catálogo ativo.');
+  return { material: values.material, thickness };
 }
 export function remnantValues(values, data = {}) {
   const location = text(values.location, 140);
@@ -52,7 +54,7 @@ export function prepareRemnantImport(batch, data) {
     }
     const materials = getMaterials(staged);
     if (!Object.hasOwn(materials, record.material)) throw new Error(`${code}: material não cadastrado.`);
-    const thickness = number(record.thickness, `${code}: espessura`);
+    const thickness = canonicalThickness(record.material,number(record.thickness, `${code}: espessura`));
     if (thickness > 1000) throw new Error(`${code}: a espessura deve ser menor ou igual a 1.000 mm.`);
     if (!materials[record.material].thicknesses.includes(thickness)) {
       const old = Object.values(staged.sheets).find(s => s.material === record.material && s.thickness === thickness);
@@ -89,6 +91,15 @@ export function applyOperation(previous, command, actor, timestamp) {
   state.sheets ||= {}; state.remnants ||= {}; state.tasks ||= {}; state.movements ||= {};
   let description = '', before = null, after = null, entityId = command.id || '';
   switch (command.type) {
+    case 'merge-inox-6-635': {
+      const merged = mergeInoxStock(state);
+      if (!merged) throw new Error('O inox já está unificado em 6,35 mm. Nenhuma quantidade foi alterada.');
+      before = merged.before;
+      after = { ...merged.after,totals:merged.totals,moved:merged.moved,combined:merged.combined,changedRemnants:merged.changedRemnants,productCode:'3.0011.010.1' };
+      entityId = 'inox-6_35';
+      description = `Unificação do inox 6 mm em 6,35 mm · ${merged.totals.sheetsAfter} chapa(s) e ${merged.totals.remnantsAfter} retalho(s) preservados`;
+      break;
+    }
     case 'catalog-product-codes': {
       const added = addMissingProductTypes(state);
       if (!added.length) throw new Error('As espessuras da tabela de códigos já estão cadastradas. Nenhum saldo foi alterado.');
@@ -114,10 +125,10 @@ export function applyOperation(previous, command, actor, timestamp) {
     case 'sheet-add': {
       const materials = getMaterials(state);
       if (!Object.hasOwn(materials, command.material)) throw new Error('Selecione um material cadastrado.');
-      const thickness = number(command.thickness, 'Espessura');
+      const thickness = canonicalThickness(command.material,number(command.thickness, 'Espessura'));
       if (thickness > 1000) throw new Error('A espessura deve ser menor ou igual a 1.000 mm.');
       const id = sheetId(command.material, thickness); validKey(id); entityId = id;
-      const old = state.sheets[id];
+      const old = state.sheets[id] || Object.values(state.sheets).find(sheet => sheet.material === command.material && canonicalThickness(sheet.material,sheet.thickness) === thickness);
       if (old && old.active !== false) throw new Error('Esta espessura já está cadastrada para o material.');
       if (old && old.quantity > 0) throw new Error('Revise o saldo da espessura removida antes de reativar.');
       before = old || null;

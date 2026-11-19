@@ -1,5 +1,6 @@
-export const MATERIALS = Object.freeze({ carbono: { name: 'Aço Carbono', density: 7850, thicknesses: [2, 3, 4.76, 6.35, 7.94, 9.35, 12.7, 19.05] }, inox: { name: 'Aço Inox', density: 8000, thicknesses: [1.5, 2, 3, 4, 5, 6] } });
-export const activeSheets = data => Object.values(data?.sheets || {}).filter(sheet => sheet.active !== false);
+import { canonicalItem } from './inox-merge.js';
+export const MATERIALS = Object.freeze({ carbono: { name: 'Aço Carbono', density: 7850, thicknesses: [2, 3, 4.76, 6.35, 7.94, 9.35, 12.7, 19.05] }, inox: { name: 'Aço Inox', density: 8000, thicknesses: [1.5, 2, 3, 4, 5, 6.35] } });
+export const activeSheets = data => Object.values(data?.sheets || {}).filter(sheet => sheet.active !== false).map(canonicalItem);
 export const reorderPoint = sheet => Number.isSafeInteger(sheet.reorderPoint) && sheet.reorderPoint >= 0 ? sheet.reorderPoint : 2;
 export const needsRestock = sheet => sheet.active !== false && sheet.quantity <= reorderPoint(sheet);
 export const materialName = (key, data = {}) => data.materials?.[key]?.name || MATERIALS[key]?.name || key;

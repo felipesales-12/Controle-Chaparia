@@ -12,7 +12,7 @@ test.beforeEach(async({request})=>{await request.get('/__test/reset');});
 test('product codes are searchable and missing exact thicknesses can be added without changing existing stock',async({page,request})=>{
   await login(page);
   await expect(page.locator('[data-sheet-id="carbono-2"]')).toContainText('3.0011.020.2');
-  await expect(page.locator('[data-sheet-id="inox-6"] .product-code')).toHaveCount(0);
+  await expect(page.locator('[data-sheet-id="inox-6_35"]')).toContainText('3.0011.010.1');
   await page.locator('#sheet-search').fill('3.0011.020.11');
   await page.locator('[data-inventory-form=sheet-search]').getByRole('button',{name:'Buscar',exact:true}).click();
   await expect(page.locator('.stock-table tbody tr')).toHaveCount(1);
@@ -23,7 +23,7 @@ test('product codes are searchable and missing exact thicknesses can be added wi
   await expect(page.getByRole('button',{name:'Adicionar espessuras da tabela de códigos'})).toHaveCount(0);
   const data=await(await request.get('/__test/data')).json();
   expect(data.sheets['inox-6_35'].quantity).toBe(0);
-  expect(data.sheets['inox-6'].thickness).toBe(6);
+  expect(data.sheets['inox-6']).toBeUndefined();
   expect(data.sheets['carbono-9_53'].quantity).toBe(0);
 });
 test('prepared photo lot shows material code and shape, imports atomically and blocks duplicates',async({page,request})=>{
