@@ -1,3 +1,4 @@
+import { productCode } from './product-codes.js';
 import ExcelJS from 'exceljs';
 import { needsRestock } from './catalog.js';
 import { stockWeightDetails, stockWeightSummary } from './weights.js';
@@ -65,16 +66,18 @@ function detailSheet(workbook, name, records, meta, kind) {
   const sheet = workbook.addWorksheet(name, { properties: { tabColor: { argb: kind === 'remnants' ? C.green : C.gold } } });
   const headers = ['Identificador', 'Tipo de aço', 'Espessura (mm)', 'Largura (mm)', 'Comprimento (mm)', 'Quantidade (un.)', 'Peso unitário (kg)', 'Peso em estoque (kg)', 'Densidade (kg/m³)', 'Localização / Prateleira', 'Observações', 'Situação', 'ID do retalho de origem', 'Cadastro (Brasília)', 'Revisão'];
   if (kind === 'sheets') headers.push('Ponto de reposição (un.)', 'Arquivamento (Brasília)');
-  [35, 20, 17, 17, 20, 18, 22, 23, 21, 30, 52, 18, 35, 26, 12, 22, 26].slice(0, headers.length).forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+  headers.push('Código do material');
+  [35, 20, 17, 17, 20, 18, 22, 23, 21, 30, 52, 18, 35, 26, 12, ...(kind === 'sheets' ? [22, 26] : []), 24].slice(0, headers.length).forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+  sheet.getColumn(headers.length).numFmt = '@';
   frame(sheet, `CHAPARIA  /  ${name.toLocaleUpperCase('pt-BR')}`, 'Cada linha representa um cadastro. O peso unitário corresponde a UMA peça; o peso em estoque considera o saldo.', headers.length, meta, 8);
   mergeText(sheet, 5, 1, headers.length, 'Os filtros da tabela permitem separar aço, espessura e situação. A linha final soma somente os registros visíveis.', { font: { size: 10, color: { argb: C.muted } } });
-  mergeText(sheet, 6, 1, headers.length, kind === 'remnants' ? 'Retalhos consumidos estão incluídos com quantidade e peso em estoque iguais a zero. Formatos em L e furos não são descontados.' : 'Todo o catálogo está incluído, mesmo sem saldo. O peso unitário usa as dimensões cadastradas de cada chapa.', { font: { size: 10, color: { argb: C.muted } } });
+  mergeText(sheet, 6, 1, headers.length, kind === 'remnants' ? 'Retalhos consumidos estão incluídos com quantidade e peso em estoque iguais a zero. Formatos em L, meia-lua, circulares e furos são estimados pelo envelope retangular.' : 'Todo o catálogo está incluído, mesmo sem saldo. O peso unitário usa as dimensões cadastradas de cada chapa.', { font: { size: 10, color: { argb: C.muted } } });
   const start = 9, end = start + records.length - 1;
   const rows = records.map((record, index) => {
     const number = start + index;
     return [String(record.id), record.materialLabel, Number(record.thickness), Number(record.width), Number(record.length), record.quantity,
       formula(`C${number}*D${number}*E${number}*I${number}/1000000000`, record.unitKg), formula(`F${number}*G${number}`, record.totalKg), record.density,
-      String(record.location || ''), String(record.notes || ''), record.status, String(record.parentId || ''), dateLabel(record.createdAt), Number(record.revision || 1), ...(kind === 'sheets' ? [record.reorderPoint, dateLabel(record.archivedAt)] : [])];
+      String(record.location || ''), String(record.notes || ''), record.status, String(record.parentId || ''), dateLabel(record.createdAt), Number(record.revision || 1), ...(kind === 'sheets' ? [record.reorderPoint, dateLabel(record.archivedAt)] : []), record.productCode];
   });
   // An empty sheet has an explicit empty state, without a fake stock record.
   if (rows.length) table(sheet, kind === 'remnants' ? 'TabelaRetalhos' : 'TabelaChapas', 8, headers, rows, kind === 'remnants');
@@ -116,8 +119,8 @@ export function createWeightsWorkbook(data, options = {}) {
   const overview = workbook.addWorksheet('Resumo', { properties: { tabColor: { argb: C.gold } } });
   const sheets = detailSheet(workbook, 'Chapas inteiras', details.sheets, meta, 'sheets');
   const remnants = detailSheet(workbook, 'Retalhos', details.remnants, meta, 'remnants');
-  [25, 19, 23, 23, 23, 23, 25].forEach((width, index) => { overview.getColumn(index + 1).width = width; });
-  frame(overview, 'CHAPARIA  /  PESOS DO ESTOQUE', 'Visão executiva · Chapas inteiras e retalhos separados por tipo de aço e espessura', 7, meta, 10);
+  [25, 19, 23, 23, 23, 23, 25, 24].forEach((width, index) => { overview.getColumn(index + 1).width = width; });
+  frame(overview, 'CHAPARIA  /  PESOS DO ESTOQUE', 'Visão executiva · Chapas inteiras e retalhos separados por tipo de aço e espessura', 8, meta, 10);
   const cards = [
     [1, 2, 'CHAPAS INTEIRAS', formula(sheets.count ? `SUM(${range('Chapas inteiras', 'H', sheets)})` : '0', summary.sheetKg), `${summary.sheetQuantity} chapa(s) em estoque`],
     [3, 4, 'RETALHOS', formula(remnants.count ? `SUM(${range('Retalhos', 'H', remnants)})` : '0', summary.remnantKg), `${summary.remnantQuantity} peça(s) aproveitáveis`],
@@ -129,23 +132,24 @@ export function createWeightsWorkbook(data, options = {}) {
     mergeText(overview, 8, first, last, caption, { fill: C.pale, font: { size: 10, color: { argb: C.muted } } });
   }
   overview.getRow(7).height = 40;
-  const summaryRows = summary.materials.flatMap(group => group.rows.map(row => ({ ...row, material: group.name })));
+  const summaryRows = summary.materials.flatMap(group => group.rows.map(row => ({ ...row, material: group.name, productCode: productCode({material:group.material,thickness:row.thickness}) })));
   const sum = (name, column, info, number) => info.count ? `SUMIFS(${range(name, column, info)},${range(name, 'B', info)},A${number},${range(name, 'C', info)},B${number})` : '0';
-  table(overview, 'ResumoPorEspessura', 10, ['Tipo de aço', 'Espessura (mm)', 'Chapas (un.)', 'Peso chapas (kg)', 'Retalhos (un.)', 'Peso retalhos (kg)', 'Peso total (kg)'], summaryRows.map((row, index) => {
+  table(overview, 'ResumoPorEspessura', 10, ['Tipo de aço', 'Espessura (mm)', 'Chapas (un.)', 'Peso chapas (kg)', 'Retalhos (un.)', 'Peso retalhos (kg)', 'Peso total (kg)', 'Código do material'], summaryRows.map((row, index) => {
     const number = 11 + index;
-    return [row.material, row.thickness, formula(sum('Chapas inteiras', 'F', sheets, number), row.sheetQuantity), formula(sum('Chapas inteiras', 'H', sheets, number), row.sheetKg), formula(sum('Retalhos', 'F', remnants, number), row.remnantQuantity), formula(sum('Retalhos', 'H', remnants, number), row.remnantKg), formula(`D${number}+F${number}`, row.totalKg)];
+    return [row.material, row.thickness, formula(sum('Chapas inteiras', 'F', sheets, number), row.sheetQuantity), formula(sum('Chapas inteiras', 'H', sheets, number), row.sheetKg), formula(sum('Retalhos', 'F', remnants, number), row.remnantQuantity), formula(sum('Retalhos', 'H', remnants, number), row.remnantKg), formula(`D${number}+F${number}`, row.totalKg), row.productCode];
   }));
+  overview.getColumn(8).numFmt = '@';
   const end = 10 + summaryRows.length;
   for (let number = 11; number <= end; number++) {
     overview.getCell(`B${number}`).numFmt = MM;
     for (const column of ['D', 'F', 'G']) overview.getCell(`${column}${number}`).numFmt = KG;
     for (const column of ['C', 'E']) overview.getCell(`${column}${number}`).numFmt = INTEGER;
   }
-  totalRow(overview, end + 1, 7, ['TOTAL VISÍVEL', null, formula(summaryRows.length ? `SUBTOTAL(109,C11:C${end})` : '0', summary.sheetQuantity), formula(summaryRows.length ? `SUBTOTAL(109,D11:D${end})` : '0', summary.sheetKg), formula(summaryRows.length ? `SUBTOTAL(109,E11:E${end})` : '0', summary.remnantQuantity), formula(summaryRows.length ? `SUBTOTAL(109,F11:F${end})` : '0', summary.remnantKg), formula(summaryRows.length ? `SUBTOTAL(109,G11:G${end})` : '0', summary.totalKg)]);
+  totalRow(overview, end + 1, 8, ['TOTAL VISÍVEL', null, formula(summaryRows.length ? `SUBTOTAL(109,C11:C${end})` : '0', summary.sheetQuantity), formula(summaryRows.length ? `SUBTOTAL(109,D11:D${end})` : '0', summary.sheetKg), formula(summaryRows.length ? `SUBTOTAL(109,E11:E${end})` : '0', summary.remnantQuantity), formula(summaryRows.length ? `SUBTOTAL(109,F11:F${end})` : '0', summary.remnantKg), formula(summaryRows.length ? `SUBTOTAL(109,G11:G${end})` : '0', summary.totalKg)]);
   for (const column of ['D', 'F', 'G']) overview.getCell(`${column}${end + 1}`).numFmt = KG;
-  mergeText(overview, end + 3, 1, 7, 'CHAPAS INTEIRAS e RETALHOS: consulte as abas para ver peso de uma peça, saldo, medidas, identificação e observações.', { font: { size: 10, color: { argb: C.muted } } });
-  mergeText(overview, end + 4, 1, 7, 'Estimativa: carbono 7.850 kg/m³ • inox 8.000 kg/m³. Recortes e furos não são descontados. Consulte a aba Critérios.', { font: { size: 10, color: { argb: C.muted } } });
-  overview.getRow(end + 3).height = 30; overview.getRow(end + 4).height = 30; overview.pageSetup.printArea = `A1:G${end + 4}`;
+  mergeText(overview, end + 3, 1, 8, 'CHAPAS INTEIRAS e RETALHOS: consulte as abas para ver peso de uma peça, saldo, medidas, identificação e observações.', { font: { size: 10, color: { argb: C.muted } } });
+  mergeText(overview, end + 4, 1, 8, 'Estimativa: carbono 7.850 kg/m³ • inox 8.000 kg/m³. Recortes e furos não são descontados. Consulte a aba Critérios.', { font: { size: 10, color: { argb: C.muted } } });
+  overview.getRow(end + 3).height = 30; overview.getRow(end + 4).height = 30; overview.pageSetup.printArea = `A1:H${end + 4}`;
   const criteria = workbook.addWorksheet('Critérios', { properties: { tabColor: { argb: C.muted } } });
   criteria.getColumn(1).width = 32; for (let col = 2; col <= 7; col++) criteria.getColumn(col).width = 20;
   frame(criteria, 'CHAPARIA  /  CRITÉRIOS DO RELATÓRIO', 'Premissas, unidades e leitura da planilha', 7, meta, 6);
@@ -154,14 +158,15 @@ export function createWeightsWorkbook(data, options = {}) {
     ['Peso em estoque', 'Peso unitário × quantidade disponível. Linhas com saldo zero têm peso em estoque zero.'],
     ['Materiais adicionais', summary.materials.filter(m => !['carbono','inox'].includes(m.material)).map(m => `${m.name}: ${m.density} kg/m³`).join(' • ') || 'Nenhum material adicional cadastrado.'],
     ['Aço Carbono', 'Densidade de referência: 7.850 kg/m³.'], ['Aço Inox', 'Densidade de referência: 8.000 kg/m³. A liga específica pode alterar o peso real.'],
-    ['Retalhos irregulares', 'Medidas tratadas como um retângulo. Furos, formatos em L e recortes não são descontados; confira as observações.'],
+    ['Retalhos irregulares', 'Medidas tratadas como um retângulo. Furos, formatos em L, meia-lua e círculos não são descontados; confira as observações.'],
     ['Abrangência', 'Inclui todo o catálogo de chapas e todos os retalhos cadastrados, inclusive consumidos. Atividades e histórico de movimentações não fazem parte deste relatório de pesos.'],
     ['Cadastros e peças', 'Uma linha representa um cadastro de peças iguais. Não são criados identificadores fictícios para cada unidade do lote.'],
     ['Precisão e fórmulas', 'Valores exibidos com duas casas decimais, calculados sem arredondamento intermediário. As fórmulas têm resultados salvos e são recalculadas pelo Excel.'],
     ['Reposição', 'Nas chapas inteiras, saldos em amarelo atingiram o ponto de reposição da linha. O limite continua disponível na coluna Ponto de reposição (un.).'],
     ['Filtros e totais', 'Nas abas detalhadas, TOTAL VISÍVEL usa SUBTOTAL para acompanhar os filtros. O resumo por espessura usa SUMIFS para todos os registros da categoria.'],
-    ['Impressão', 'Resumo em A4 paisagem; detalhes em A3 paisagem, com cabeçalho e identificação repetidos, margens ajustadas e até duas páginas de largura para manter a leitura.'],
+    ['Impressão', 'Resumo e detalhes em A3 paisagem, com cabeçalho e identificação repetidos, margens ajustadas e até duas páginas de largura para manter a leitura.'],
     ['Atualização', 'Arquivo independente: retrato do estoque na exportação. Para receber alterações posteriores, exporte novamente pelo sistema.'],
+    ['Código do material', 'Vinculado ao tipo de aço e à espessura exata. O identificador individual de cada retalho continua separado. Espessuras sem código informado permanecem em branco.'],
     ['Datas', 'Horários de emissão e cadastro exibidos no fuso America/Sao_Paulo (Brasília). Campo de cadastro vazio significa que o registro não possui essa informação.']
   ];
   for (const [index, [title, description]] of notes.entries()) {

@@ -1,4 +1,5 @@
 import { getMaterials, materialName, materialDensity, reorderPoint } from './catalog.js';
+import { productCode } from './product-codes.js';
 
 // Reference densities for an estimated mass; the specific alloy can vary.
 export const STEEL_DENSITIES = Object.freeze({ carbono: 7850, inox: 8000 });
@@ -54,7 +55,7 @@ export function stockWeightDetails(data = {}) {
     const quantity = Number(item.quantity);
     const unitKg = pieceWeightKg(item, data);
     return {
-      ...item, id: item.id || key,
+      ...item, id: item.id || key, productCode: productCode(item),
       quantity: Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 0,
       density: materialDensity(item.material, data), materialLabel: materialName(item.material, data), reorderPoint: reorderPoint(item),
       unitKg, totalKg: unitKg * (Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 0),

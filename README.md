@@ -93,6 +93,20 @@ O relatório inclui todos os dados cadastrais de estoque dessas categorias, inde
 
 A exportação captura o estoque uma única vez para manter o arquivo consistente. Ela informa o usuário, o horário de emissão em Brasília e se a conexão estava disponível; sem conexão, usa o último estoque recebido e destaca essa condição. O arquivo é um retrato independente: exporte novamente para obter alterações posteriores. O exportador ExcelJS é incluído no mesmo arquivo JavaScript do aplicativo, sem carregamento dinâmico ou serviço externo ao clicar para exportar. O build gera um nome de arquivo por versão para evitar reutilização de código antigo pelo cache.
 
+## Códigos por material e espessura
+
+Os 13 códigos comerciais informados ficam em `js/product-codes.js`, associados ao par exato de material e espessura. Chapas, retalhos já cadastrados, pesos por peça, resumo de pesos, lista de compras e planilha Excel consultam a mesma referência. O código comercial aparece separado do identificador individual do retalho e continua sendo texto na exportação Excel.
+
+**Aço Carbono:** 2 mm → 3.0011.020.2; 3 mm → 3.0011.020.1; 4,76 mm → 3.0011.020.4; 6,35 mm → 3.0011.020.6; 7,94 mm → 3.0011.020.7; 9,53 mm → 3.0011.020.10; 12,7 mm → 3.0011.020.11; 19,05 mm → 3.0011.020.8.
+
+**Aço Inox:** 1,5 mm → 3.0011.010.4; 2 mm → 3.0011.010.11; 3 mm → 3.0011.010.2; 5 mm → 3.0011.010.20; 6,35 mm → 3.0011.010.1.
+
+Em Chapas, abra **Códigos por material e espessura** para consultar a tabela completa. O botão para adicionar espessuras ausentes cria somente os tipos que ainda não existem, com saldo zero, e grava a relação de códigos no histórico da operação. Também é possível completar o catálogo junto com um lote preparado que tenha `ensureProductCatalog: true`; retalhos, novos tipos e auditoria são gravados na mesma transação Firebase.
+
+Os tipos antigos de carbono 9,35 mm e inox 6 mm continuam separados de 9,53 mm e 6,35 mm. Nenhum saldo, localização ou identificador existente é convertido. Tipos arquivados não são reativados automaticamente. Itens sem código informado continuam sem código. Não é necessário modificar as regras atuais do Firebase: os códigos são referência do aplicativo e são incluídos na auditoria, sem acrescentar campos aos registros de estoque existentes.
+
+Retalhos em meia-lua mantêm as duas medidas do envelope retangular e a identificação do formato nas observações. O peso é estimado pelo envelope, sem descontar a parte recortada.
+
 ## Importar retalhos de uma planilha
 
 Em **Retalhos → Importar planilha**, selecione um `.xlsx` que contenha a aba **Cadastro de retalhos**, com as colunas Código, Material, Espessura (mm), Formato, Comprimento (mm), Largura (mm) e Qtd. O leitor identifica os cabeçalhos, aceita os modelos de carbono (`CAR-`) e inox (`INOX-`) e reconhece a coluna adicional Diâmetro (mm) do inox. Origem, ordem, anotação, situação e observações são preservadas quando presentes. O leitor aceita os namespaces XML do arquivo original e lê somente valores; não executa fórmulas ou instruções de outras abas.
@@ -165,9 +179,9 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **47 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **29 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
-- **14 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
+- **53 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **31 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **15 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória; dois testes adicionais usam o SDK real para verificar o transporte HTTP alternativo, a política de conteúdo e o cancelamento da espera. Eles utilizam um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
 

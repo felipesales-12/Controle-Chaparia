@@ -1,4 +1,5 @@
 import { validateBackup } from './backup.js';
+import { PRODUCT_CODES, addMissingProductTypes, productCode } from './product-codes.js';
 
 import { MATERIALS, getMaterials, materialName, activeSheets, needsRestock, reorderPoint } from './catalog.js';
 export { MATERIALS, materialName } from './catalog.js';
@@ -10,7 +11,7 @@ export function initialState() {
   }))) };
 }
 export const criticalSheets = sheets => Object.values(sheets || {}).filter(needsRestock);
-export const purchaseText = (sheets, data = {}) => ['SOLICITAÇÃO DE COMPRA • CHAPARIA', ...criticalSheets(sheets).map(s => `Solicitar mais chapas: ${materialName(s.material, data)} ${s.thickness}mm — Restam ${s.quantity} chapas (ponto de reposição: ${reorderPoint(s)}; ${s.length}x${s.width}mm)${s.location ? ` — ${s.location}` : ''}`)].join('\n');
+export const purchaseText = (sheets, data = {}) => ['SOLICITAÇÃO DE COMPRA • CHAPARIA', ...criticalSheets(sheets).map(s => `Solicitar mais chapas: ${materialName(s.material, data)} ${s.thickness}mm — Restam ${s.quantity} chapas${productCode(s) ? ` — Código ${productCode(s)}` : ''} (ponto de reposição: ${reorderPoint(s)}; ${s.length}x${s.width}mm)${s.location ? ` — ${s.location}` : ''}`)].join('\n');
 export function number(value, label, integer = false, allowZero = false) {
   const n = Number(value);
   if (String(value).trim() === '' || !Number.isFinite(n) || n < (allowZero ? 0 : Number.MIN_VALUE) || n > 1000000 || (integer && !Number.isSafeInteger(n))) throw new Error(`${label}: informe ${integer ? 'um número inteiro' : 'um número'} ${allowZero ? 'maior ou igual a zero' : 'maior que zero'}, até 1.000.000.`);
@@ -38,6 +39,7 @@ export function prepareRemnantImport(batch, data) {
   if (batch?.format !== 'chaparia-retalhos' || batch.version !== 1 || !Array.isArray(batch.records) || !batch.records.length || batch.records.length > 1000) throw new Error('Arquivo de importação de retalhos inválido. Use o formato chaparia-retalhos, versão 1, com até 1.000 registros.');
   const batchId = validKey(batch.batchId), source = text(batch.source, 200);
   const staged = { ...data, sheets: { ...data.sheets } }, entries = [], additions = [], codes = new Set();
+  if (batch.ensureProductCatalog === true) additions.push(...addMissingProductTypes(staged));
   let skipped = 0;
   for (const record of batch.records) {
     const code = validKey(record.code), id = validKey(`${batchId}-${code}`);
@@ -87,6 +89,14 @@ export function applyOperation(previous, command, actor, timestamp) {
   state.sheets ||= {}; state.remnants ||= {}; state.tasks ||= {}; state.movements ||= {};
   let description = '', before = null, after = null, entityId = command.id || '';
   switch (command.type) {
+    case 'catalog-product-codes': {
+      const added = addMissingProductTypes(state);
+      if (!added.length) throw new Error('As espessuras da tabela de códigos já estão cadastradas. Nenhum saldo foi alterado.');
+      after = { codes: PRODUCT_CODES.map(row => ({ ...row })), addedThicknesses: added.map(sheet => ({ id: sheet.id, material: sheet.material, thickness: sheet.thickness, quantity: 0 })) };
+      description = `Catálogo de códigos atualizado · ${added.length} espessura(s) adicionada(s) com saldo zero`;
+      entityId = 'product-codes';
+      break;
+    }
     case 'material-add': {
       validKey(command.id);
       const name = text(command.name, 80);
@@ -174,7 +184,7 @@ export function applyOperation(previous, command, actor, timestamp) {
         log(`r${index}`, 'remnant-add', item, `Cadastro de ${item.quantity} retalho(s) · ${materialName(item.material, state)} ${item.thickness}mm · ${item.width}x${item.length}mm · ${item.location}`);
       });
       entityId = plan.batchId;
-      after = { imported: plan.entries.length, pieces: plan.pieces, skipped: plan.skipped, source: plan.source, addedThicknesses: plan.additions.map(s => ({ material: s.material, thickness: s.thickness })) };
+      after = { imported: plan.entries.length, pieces: plan.pieces, skipped: plan.skipped, source: plan.source, addedThicknesses: plan.additions.map(s => ({ material: s.material, thickness: s.thickness })), ...(command.batch.ensureProductCatalog === true ? { productCodes: PRODUCT_CODES.map(row => ({ ...row })) } : {}) };
       description = `Importação de retalhos · ${plan.entries.length} registros · ${plan.pieces} peça(s) · ${plan.skipped} já importados`;
       break;
     }

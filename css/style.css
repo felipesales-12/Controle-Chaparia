@@ -284,3 +284,14 @@ table td { font-size:11px; }
 .import-records { margin-top:20px; }
 .import-records .table-scroll { max-height:300px; overflow:auto; margin-top:12px; }
 @media(max-width:700px) { .page-heading:has(.inventory-page-actions) { flex-wrap:wrap; } }
+
+.product-code { display:block; font-size:10px; line-height:1.5; color:var(--muted); margin-top:5px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.catalog-code-reference { padding:18px 22px; margin-bottom:20px; }
+.catalog-code-reference>summary { cursor:pointer; font-weight:700; font-size:13px; }
+.catalog-code-reference>summary span { font-weight:400; color:var(--muted); margin-left:8px; }
+.product-code-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-top:18px; }
+.product-code-list>div { display:grid; gap:5px; border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12px; }
+.product-code-list code { color:var(--ink); font-size:12px; }
+.product-code-list small { color:var(--muted); }
+.product-code-footer { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:18px; }
+.product-code-footer p { font-size:12px; color:var(--muted); flex:1; min-width:200px; }

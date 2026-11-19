@@ -28,8 +28,8 @@ test('Excel report separates stock types and preserves the full inventory fields
  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(buffer);
  assert.deepEqual(workbook.worksheets.map(s=>s.name),['Resumo','Chapas inteiras','Retalhos','Critérios']);
  const sheets=workbook.getWorksheet('Chapas inteiras'),remnants=workbook.getWorksheet('Retalhos');
- assert.equal(sheets.getTable('TabelaChapas').table.tableRef,'A8:Q22');
- assert.equal(remnants.getTable('TabelaRetalhos').table.tableRef,'A8:O10');
+ assert.equal(sheets.getTable('TabelaChapas').table.tableRef,'A8:R22');
+ assert.equal(remnants.getTable('TabelaRetalhos').table.tableRef,'A8:P10');
  assert.equal(sheets.getCell('A9').value,'carbono-2');assert.equal(sheets.getCell('F9').value,2);assert.equal(sheets.getCell('J9').value,'A-01');
  close(sheets.getCell('G9').result,70.65);close(sheets.getCell('H9').result,141.3);
  assert.equal(remnants.getCell('K9').value,'Corte em L');assert.equal(remnants.getCell('M9').value,'parent');assert.equal(remnants.getCell('O9').value,2);assert.ok(remnants.getCell('N9').value);
@@ -50,7 +50,7 @@ test('empty and zero-stock reports serialize without phantom records or invalid 
    const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await weightsExcelBuffer(data,meta));
    assert.match(workbook.getWorksheet('Retalhos').getCell('A10').value,/Nenhum registro/);
    assert.equal(workbook.getWorksheet('Retalhos').getCell('H12').value,0);
-   const overview=workbook.getWorksheet('Resumo');assert.equal(overview.getTable('ResumoPorEspessura').table.tableRef,'A10:G24');
+   const overview=workbook.getWorksheet('Resumo');assert.equal(overview.getTable('ResumoPorEspessura').table.tableRef,'A10:H24');
    assert.equal(overview.getCell('E7').result??0,0);
  }
 });

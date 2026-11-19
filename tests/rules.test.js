@@ -128,3 +128,17 @@ test('concurrent batch imports commit stock, a new exact thickness and per-recor
   assert.equal(Object.keys(state.movements).length,4);
   assert.equal(Object.values(state.movements).filter(m=>m.type==='remnant-add').length,2);
 });
+
+test('coded photo import validates against deployed schema without replacing legacy stock',{timeout:15000},async()=>{
+  const { commitSharedTransaction }=await import('../js/shared-data.js');
+  const db=env.authenticatedContext('pcp').database(),state=initialState();state.sheets['inox-6'].quantity=4;
+  await db.ref('chaparia').set(state);
+  const batch={format:'chaparia-retalhos',version:1,batchId:'coded-photos',source:'Test photos',ensureProductCatalog:true,records:[
+    {code:'PHOTO-1',material:'carbono',thickness:19.05,width:200,length:800,quantity:1,location:'P1',notes:'Meia-lua'}
+  ]};
+  const operation=transactionReducer({type:'remnant-import',batch,eventId:'coded-import'},{uid:'pcp',email:'pcp@example.com'},1700000000000);
+  const result=await commitSharedTransaction(modularRef(db,'chaparia'),operation.update);assert.ok(result.committed);
+  const final=result.snapshot.val();assert.equal(final.sheets['inox-6'].quantity,4);assert.equal(final.sheets['inox-6_35'].quantity,0);
+  assert.equal(final.sheets['carbono-9_53'].quantity,0);assert.equal(Object.values(final.movements['coded-import'].after.productCodes).length,13);
+  assert.equal(final.remnants['coded-photos-PHOTO-1'].quantity,1);
+});
