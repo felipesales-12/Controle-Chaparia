@@ -11,7 +11,11 @@ const result = await build({ entryPoints: [root+'js/app.js'], outdir: root+'dist
 const scripts = Object.entries(result.metafile.outputs).filter(([path]) => path.endsWith('.js'));
 if (scripts.length !== 1 || scripts.some(([, meta]) => meta.imports.some(item => item.kind === 'dynamic-import'))) throw new Error('O aplicativo e o exportador Excel devem estar no mesmo arquivo JavaScript.');
 const entryName = basename(scripts[0][0]);
-const html = await readFile(root+'index.html', 'utf8');
+const html = (await readFile(root+'index.template.html', 'utf8')).replace('content="development"', `content="${entryName}"`);
 await writeFile(root+'dist/index.html', html.replace('./js/app.js', './js/'+entryName));
-for (const file of [ 'firebase-config.js', 'favicon.svg', 'css/legacy.css', 'css/style.css', 'sw.js', '.nojekyll']) await copyFile(root+file, root+'dist/'+file);
+// GitHub's branch-based Pages publisher may also run for this repository.
+// Its root must contain a browser-ready bundle, never bare npm imports.
+await copyFile(root+'dist/js/'+entryName,root+'js/app.bundle.js');
+await writeFile(root+'index.html',html.replace('./js/app.js','./js/app.bundle.js?v='+entryName));
+for (const file of [ 'firebase-config.js', 'favicon.svg', 'css/legacy.css', 'css/style.css', 'js/startup-guard.js', 'sw.js', '.nojekyll']) await copyFile(root+file, root+'dist/'+file);
 console.log('Build completo em dist/. Caminhos relativos compatíveis com GitHub Pages.');

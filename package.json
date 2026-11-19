@@ -8,7 +8,7 @@
     "build": "node scripts/build.mjs",
     "start": "npm run build && node scripts/preview.mjs",
     "preview": "node scripts/preview.mjs",
-    "test": "node --test tests/domain.test.js tests/weights.test.js tests/weights-excel.test.js tests/catalog.test.js tests/remnant-import.test.js tests/product-codes.test.js tests/inox-merge.test.js",
+    "test": "node --test tests/domain.test.js tests/weights.test.js tests/weights-excel.test.js tests/catalog.test.js tests/remnant-import.test.js tests/product-codes.test.js tests/inox-merge.test.js tests/build-output.test.js",
     "test:e2e": "playwright test",
     "test:rules": "firebase emulators:exec --only database --project demo-chaparia 'node --test tests/rules.test.js'"
   },

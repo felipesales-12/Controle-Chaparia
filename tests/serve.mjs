@@ -8,12 +8,21 @@ const root=resolve('work/e2e');
 await rm(root,{recursive:true,force:true});
 await mkdir(root+'/js',{recursive:true});await mkdir(root+'/css',{recursive:true});
 await build({entryPoints:['js/app.js'],outdir:root+'/js',entryNames:'[name]',bundle:true,splitting:false,format:'esm',plugins:[{name:'qa-cloud',setup(b){b.onResolve({filter:/\/cloud\.js$/},()=>({path:resolve('tests/fixtures/cloud.js')}));}}]});
-for(const path of ['index.html','css/style.css','css/legacy.css','favicon.svg'])await copyFile(path,root+'/'+path);
+for(const path of ['css/style.css','css/legacy.css','favicon.svg','js/startup-guard.js'])await copyFile(path,root+'/'+path);
+await writeFile(root+'/index.html',await readFile('index.template.html','utf8'));
 await build({entryPoints:['tests/fixtures/transport-probe.js'],outfile:root+'/js/transport-probe.js',bundle:true,format:'esm'});
-await writeFile(root+'/transport-probe.html',(await readFile('index.html','utf8')).replace('./js/app.js','./js/transport-probe.js'));
+await writeFile(root+'/transport-probe.html',(await readFile('index.template.html','utf8')).replace('./js/app.js','./js/transport-probe.js'));
 let state=initialState();const subscribers=new Set();
 createServer(async(req,res)=>{
   const url=new URL(req.url,'http://localhost');
+  if(url.pathname.startsWith('/__production/')){
+    try{
+      const parts=url.pathname.split('/').slice(2),kind=parts.shift(),relative=parts.join('/');
+      if(!['root','dist'].includes(kind)||!/^(index\.html|firebase-config\.js|favicon\.svg|css\/(legacy|style)\.css|js\/(startup-guard|app\.bundle|app-[A-Z0-9]+)\.js)$/.test(relative))throw Error();
+      const path=resolve(kind==='root'?'.':'dist',relative);
+      res.writeHead(200,{'Content-Type':({'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'})[extname(path)]||'application/octet-stream'}).end(await readFile(path));
+    }catch{res.writeHead(404).end();}return;
+  }
   if(url.pathname==='/__test/events'){res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache','Connection':'keep-alive'});res.write(`data: ${JSON.stringify(state)}\n\n`);subscribers.add(res);req.on('close',()=>subscribers.delete(res));return;}
   if(url.pathname==='/__test/data'){res.writeHead(200,{'Content-Type':'application/json'}).end(JSON.stringify(state));return;}
   if(url.pathname==='/__test/reset'){state=initialState();for(const client of subscribers)client.write(`data: ${JSON.stringify(state)}\n\n`);res.end('{}');return;}

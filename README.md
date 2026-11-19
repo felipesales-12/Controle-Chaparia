@@ -131,6 +131,16 @@ O mesmo código no mesmo lote nunca aumenta o estoque novamente, inclusive depoi
 
 Links preparados podem carregar um lote completo ou correções de medidas e quantidades. No segundo caso, selecione a planilha original para aplicar as correções automaticamente. A prévia abre após o login, e o fragmento da URL é removido após a leitura. O link sozinho não grava estoque: a gravação ocorre pelo botão de importação. Os dados da planilha não são incluídos no repositório ou no build público.
 
+## Inicialização e publicação da tela de acesso
+
+A fonte da tela é **`index.template.html`**. O comando `npm run build` gera dois destinos com o mesmo aplicativo compilado: `dist/`, publicado pelo workflow, e a raiz do repositório (`index.html` + `js/app.bundle.js`), compatível com a publicação nativa por branch do GitHub Pages. Esses dois arquivos da raiz são gerados e versionados; para alterar a tela, edite o template e execute o build. O JavaScript da raiz recebe uma versão na URL para evitar reutilização do código antigo pelo cache.
+
+Isso impede que uma publicação nativa sirva `js/app.js` diretamente, com imports npm que o navegador não resolve e que deixariam o botão de entrada desativado. O workflow também aguarda publicações nativas pendentes antes de publicar `dist/`, garantindo que o build atualizado seja publicado por último.
+
+O pequeno `js/startup-guard.js` funciona separado do aplicativo. Se o arquivo principal falhar ou não iniciar em 12 segundos, a tela informa o problema e oferece **Recarregar o sistema**. A recuperação preserva a rota e busca a página com uma nova URL, sem apagar estoque ou sessão. Erros de configuração e sincronização do Firebase continuam sendo apresentados pelo próprio aplicativo.
+
+Os testes de inicialização abrem tanto a raiz quanto `dist/` usando o SDK real do Firebase, em um navegador sem sessão e sem rede externa. Também verificam a recuperação de arquivo ausente e de requisição que não termina. Eles não entram em contas reais nem leem o estoque de produção.
+
 ## Ativar o Firebase
 
 O passo a passo ilustrado por telas e comandos está em [docs/CONFIGURACAO.md](docs/CONFIGURACAO.md). Resumo:
@@ -191,8 +201,8 @@ npm run test:e2e
 npm run test:rules
 ```
 
-- **60 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
-- **33 testes de interface e transporte:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
+- **61 testes de lógica e exportação:** catálogo, quantidades, concorrência, revisões, retalhos, transições de atividades, backups e CSV.
+- **37 testes de interface, transporte e inicialização:** navegação, operações, sincronização simulada entre navegadores, cópia de compras, formulários, restauração e conflitos de edição.
 - **17 testes de regras/integração:** acessos autenticados/não autenticados, validação, inicialização e transações concorrentes no emulador oficial do Realtime Database.
 
 Os testes de interface usam um serviço simulado em memória; dois testes adicionais usam o SDK real para verificar o transporte HTTP alternativo, a política de conteúdo e o cancelamento da espera. Eles utilizam um bundle isolado em `work/e2e/`. Esse serviço **não entra no build de produção**. A produção usa somente o SDK oficial do Firebase. Os testes de interface não equivalem a um teste no Firebase real.
@@ -227,7 +237,8 @@ Controle-Chaparia/
 ├── .gitignore
 ├── .nojekyll
 ├── README.md
-├── index.html
+├── index.template.html   # fonte da tela
+├── index.html            # tela gerada para publicação por branch
 ├── favicon.svg
 ├── firebase-config.js
 ├── firebase.json

@@ -414,6 +414,8 @@ function adoptCloud() {
   }
   updateCloudChrome();
   scheduleInoxMerge(state);
+  document.documentElement.dataset.appReady = 'true';
+  document.dispatchEvent(new Event('chaparia:ready'));
 }
 subscribeCloud(adoptCloud);
 document.addEventListener('submit', async event => {
@@ -437,7 +439,11 @@ document.addEventListener('submit', async event => {
 initializeInventory({ redraw: render, notify, confirm: confirmAction });
 initializeWeights({ redraw: render, notify });
 for (const id of ['task-dialog','confirm-dialog']) document.getElementById(id).addEventListener('cancel', event => { if (busy || cloudState().saving) event.preventDefault(); });
-initialize().catch(error => { $('#login-status').textContent=error.message; });
+initialize().catch(error => {
+  $('#login-status').textContent=error.message;
+  document.documentElement.dataset.appReady='true';
+  document.dispatchEvent(new Event('chaparia:ready'));
+});
 // Retire the legacy offline cache for this site's scope only.
 if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(regs => {
   const scope = new URL('./', location.href).href;
